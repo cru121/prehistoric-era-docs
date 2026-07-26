@@ -746,9 +746,31 @@ def build_buildings_page(m):
         yields = fmt_yields(m.yields_for("Building_YieldChanges", "BuildingType", bt))
         return entity_card(m, bt, r.get("Name"), r.get("Description"), sub, yields)
 
+    # Group by the district the building belongs to.
+    DISTRICTS = [
+        ("DISTRICT_CITY_CENTER", "City Center buildings",
+         "Early-economy buildings raised in the City Center — cooking and shelter, craft workshops, and the first record-keeping."),
+        ("DISTRICT_GOVERNMENT", "Government Plaza buildings",
+         "Tier-0 Government Plaza buildings. Constructing one locks in a government's Legacy bonus."),
+        ("DISTRICT_INDUSTRIAL_ZONE", "Industrial Zone buildings",
+         "Built in the Industrial Zone, unlocked through the Fire &amp; Stone secret society."),
+    ]
+    groups = {}
+    for r in blds:
+        groups.setdefault(r.get("PrereqDistrict"), []).append(r)
+
+    sections = []
+    for dtype, label, blurb in DISTRICTS:
+        rows = groups.pop(dtype, [])
+        if not rows:
+            continue
+        sections.append(f'<h2>{label}</h2><p class="lead">{blurb}</p>{card_grid([card(r) for r in rows])}')
+    for dtype, rows in groups.items():  # any other district, just in case
+        sections.append(f'<h2>{html.escape(nice_type(m, dtype or "Other"))}</h2>{card_grid([card(r) for r in rows])}')
+
     body = f"""<h1>Buildings</h1>
-<p class="lead">{len(blds)} new buildings for the early economy — the communal Hearth, the record-keeping Tablet House, and early craft workshops.</p>
-{card_grid([card(r) for r in blds])}"""
+<p class="lead">{len(blds)} new buildings across three districts — the early City Center economy, the Tier-0 Government Plaza, and a secret-society Industrial Zone building. (World wonders are on the <a href="wonders.html">Wonders</a> page.)</p>
+{"".join(sections)}"""
     return page("Buildings", "buildings.html", body)
 
 
