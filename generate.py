@@ -534,6 +534,28 @@ def boost_block(m, type_col, type_key, label):
     return f'<div class="eureka"><span class="eu-tag">💡 {label}</span> {render_inline(req, m.loc)}</div>'
 
 
+# Base-game reusable civic-completion reward modifiers (grant an Envoy / Governor
+# Title, etc.). These aren't in the civic's Description text, so surface them.
+CIVIC_REWARDS = {
+    "CIVIC_AWARD_ONE_INFLUENCE_TOKEN": ("🤝", "+1 Envoy"),
+    "CIVIC_AWARD_TWO_INFLUENCE_TOKENS": ("🤝", "+2 Envoys"),
+    "CIVIC_GRANT_PLAYER_GOVERNOR_POINTS": ("🎖️", "+1 Governor Title"),
+}
+
+
+def rewards_block(m, civic_type):
+    seen, rewards = set(), []
+    for r in m.canon_rows("CivicModifiers"):
+        mid = r.get("ModifierId")
+        if r.get("CivicType") == civic_type and mid in CIVIC_REWARDS and mid not in seen:
+            seen.add(mid)
+            rewards.append(CIVIC_REWARDS[mid])
+    if not rewards:
+        return ""
+    chips = "".join(f'<span class="reward">{e} {html.escape(t)}</span>' for e, t in rewards)
+    return f'<div class="rewards"><span class="eff-head">On completion</span>{chips}</div>'
+
+
 def icon_img(m, type_key, glyph="⬦"):
     icon = m.icon_web(type_key)
     if icon:
@@ -632,6 +654,7 @@ def build_civics_page(m):
   <div class="card-head">{img}<div><h3>{name_of(r['Name'], m.loc)}</h3>
   <div class="sub">Cost {r.get('Cost')} 🎭 · Prehistoric Era</div></div></div>
   {effects_block(m, ct)}
+  {rewards_block(m, ct)}
   {boost_block(m, 'CivicType', ct, 'Inspiration')}
   {unlock_chips(m, unlocks_for(m, 'PrereqCivic', ct) + extra)}
 </div>""")
@@ -1173,6 +1196,9 @@ svg.tree .node-meta{fill:var(--muted);font-size:11px}
 blockquote{border-left:3px solid var(--accent);margin:.6em 0 0;padding:.2em 0 .2em 12px;
   color:var(--muted);font-style:italic;font-size:.9rem}
 .effects{margin:.5em 0}
+.rewards{margin:.5em 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.reward{background:var(--bg2);border:1px solid var(--accent2);border-radius:6px;
+  padding:2px 9px;font-size:.85rem;font-weight:600;color:var(--accent2)}
 .eff-head{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px}
 .effects p{margin:.25em 0;font-size:.92rem;color:#ddd2bd}
 .eureka{background:var(--bg2);border-left:3px solid var(--accent2);border-radius:6px;

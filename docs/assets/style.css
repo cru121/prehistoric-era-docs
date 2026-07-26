@@ -73,6 +73,9 @@ svg.tree .node-meta{fill:var(--muted);font-size:11px}
 blockquote{border-left:3px solid var(--accent);margin:.6em 0 0;padding:.2em 0 .2em 12px;
   color:var(--muted);font-style:italic;font-size:.9rem}
 .effects{margin:.5em 0}
+.rewards{margin:.5em 0;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.reward{background:var(--bg2);border:1px solid var(--accent2);border-radius:6px;
+  padding:2px 9px;font-size:.85rem;font-weight:600;color:var(--accent2)}
 .eff-head{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:2px}
 .effects p{margin:.25em 0;font-size:.92rem;color:#ddd2bd}
 .eureka{background:var(--bg2);border-left:3px solid var(--accent2);border-radius:6px;
