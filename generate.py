@@ -242,10 +242,14 @@ class Model:
     def canon_rows(self, table):
         return self.canon.get(table, [])
 
-    def boost_long(self, type_col, type_key):
-        for b in self.rows("Boosts"):
-            if b.get(type_col) == type_key and b.get("TriggerLongDescription"):
-                return b["TriggerLongDescription"]
+    def boost_requirement(self, type_col, type_key):
+        """The Eureka/Inspiration TRIGGER (what you must do to earn it), not the
+        flavor line. Read from the canonical Technologies.sql / Civics.sql only —
+        the 6T-compat and Nomadic files add variant triggers that don't apply to
+        a standard game."""
+        for b in self.canon_rows("Boosts"):
+            if b.get(type_col) == type_key and b.get("TriggerDescription"):
+                return b["TriggerDescription"]
         return None
 
     def yields_for(self, table, key_col, key):
@@ -520,10 +524,10 @@ def effects_block(m, type_key):
 
 
 def boost_block(m, type_col, type_key, label):
-    long = m.boost_long(type_col, type_key)
-    if not long:
+    req = m.boost_requirement(type_col, type_key)
+    if not req:
         return ""
-    return f'<div class="eureka"><span class="eu-tag">💡 {label}</span> <em>{render_inline(long, m.loc)}</em></div>'
+    return f'<div class="eureka"><span class="eu-tag">💡 {label}</span> {render_inline(req, m.loc)}</div>'
 
 
 def icon_img(m, type_key, glyph="⬦"):
