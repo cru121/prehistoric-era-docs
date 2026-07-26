@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Never commit the mod's own source files, even if copied in by accident
+/Data/
+/Text/
+/Icons/
+/Scripts/
+/Art/
+/Config/
+/UI/
+*.modinfo

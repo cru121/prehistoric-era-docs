@@ -1,0 +1,23 @@
+{
+  "_note": "Supplement, NOT derived from the mod's files. Base-game policy cards that prehistoric policies are superseded by; the mod does not define these, so their unlocking civic isn't in Data/*.sql. Keys are base-game PolicyType. Edit freely and re-run the generator — entries here only add the '(unlocked by ...)' hint on the Policies page. Delete an entry to fall back to showing just the successor's name. Keys starting with '_' are ignored.",
+  "_source": "Verified against civilization.fandom.com (each policy's 'Unlocked by' civic and era), 2026-07-26.",
+
+  "POLICY_ILKUM":             { "civic": "Craftsmanship",      "era": "Ancient" },
+  "POLICY_CORVEE":            { "civic": "State Workforce",    "era": "Ancient" },
+  "POLICY_RAID":              { "civic": "Military Training",  "era": "Classical" },
+  "POLICY_INSULAE":           { "civic": "Games and Recreation", "era": "Classical" },
+  "POLICY_BASTIONS":          { "civic": "Defensive Tactics",  "era": "Classical" },
+  "POLICY_SCRIPTURE":         { "civic": "Theology",           "era": "Classical" },
+  "POLICY_NATURAL_PHILOSOPHY":{ "civic": "Recorded History",   "era": "Classical" },
+  "POLICY_PRAETORIUM":        { "civic": "Recorded History",   "era": "Classical" },
+  "POLICY_SERFDOM":           { "civic": "Feudalism",          "era": "Medieval" },
+  "POLICY_RETAINERS":         { "civic": "Civil Service",      "era": "Medieval" },
+  "POLICY_AESTHETICS":        { "civic": "Medieval Faires",    "era": "Medieval" },
+  "POLICY_PROFESSIONAL_ARMY": { "civic": "Mercenaries",        "era": "Medieval" },
+  "POLICY_FREE_MARKET":       { "civic": "The Enlightenment",  "era": "Renaissance" },
+  "POLICY_RATIONALISM":       { "civic": "The Enlightenment",  "era": "Renaissance" },
+  "POLICY_TRIANGULAR_TRADE":  { "civic": "Mercantilism",       "era": "Renaissance" },
+  "POLICY_NATIVE_CONQUEST":   { "civic": "Colonialism",        "era": "Industrial" },
+  "POLICY_NATIONAL_IDENTITY": { "civic": "Nationalism",        "era": "Industrial" },
+  "POLICY_MARTIAL_LAW":       { "civic": "Totalitarianism",    "era": "Modern" }
+}
