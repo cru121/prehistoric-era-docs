@@ -409,6 +409,9 @@ NAV = [
     ("wonders.html", "Wonders"),
     ("improvements.html", "Improvements"),
     ("myths.html", "Myths"),
+    ("governments.html", "Governments"),
+    ("governor.html", "Governor"),
+    ("society.html", "Society"),
 ]
 
 
@@ -589,6 +592,7 @@ def build_tech_page(m):
 
     body = f"""<h1>Technology Tree</h1>
 <p class="lead">The Prehistoric era adds <strong>{len(techs)}</strong> new technologies, from Flintknapping to Agriculture. Columns follow prerequisite depth (as in-game). Dashed arrows on the right show where each branch gates into the Ancient era.</p>
+<p class="note">ℹ️ This shows the <strong>standard game</strong>. In the <em>Wandering Start</em> game mode the technology tree is re-tuned — different prerequisites, layout, costs, and Eurekas.</p>
 <div class="tree-wrap">{svg}</div>
 <h2>Details</h2>
 {card_grid(cards)}"""
@@ -886,6 +890,127 @@ def build_policies_page(m):
     return page("Policies", "policies.html", body)
 
 
+def html_table(headers, rows):
+    head = "".join(f"<th>{h}</th>" for h in headers)
+    body = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows)
+    return f'<div class="tbl-wrap"><table class="tbl"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>'
+
+
+def split_unlock(raw):
+    """Secret-society title descriptions begin with the unlock condition, e.g.
+    'Unlocked in the Medieval Era. <effect>'. Split it out for a tidy table."""
+    if raw and raw.strip().startswith("Unlocked"):
+        parts = raw.split(". ", 1)
+        unlock = parts[0].strip().rstrip(".")
+        unlock = re.sub(r"^Unlocked\s+", "", unlock)
+        unlock = unlock[:1].upper() + unlock[1:] if unlock else unlock
+        return unlock, (parts[1] if len(parts) > 1 else "")
+    return None, raw
+
+
+def governor_promotions(m, gov_type):
+    in_set = {r["GovernorPromotion"] for r in m.rows("GovernorPromotionSets")
+              if r.get("GovernorType") == gov_type}
+    proms = [p for p in m.rows("GovernorPromotions") if p.get("GovernorPromotionType") in in_set]
+    prereqs = {}
+    for r in m.rows("GovernorPromotionPrereqs"):
+        pt = r.get("GovernorPromotionType")
+        if pt in in_set:
+            prereqs.setdefault(pt, []).append(r.get("PrereqGovernorPromotion"))
+    proms.sort(key=lambda p: (int(p.get("Level") or 0), m.loc.get(p.get("Name"), "")))
+    return proms, prereqs
+
+
+def build_governor_page(m):
+    gt = "GOVERNOR_PR_SHAMAN"
+    gov = next((g for g in m.rows("Governors") if g.get("GovernorType") == gt), None)
+    proms, prereqs = governor_promotions(m, gt)
+    pname = {p["GovernorPromotionType"]: m.loc.get(p.get("Name"), p.get("Name")) for p in proms}
+    rows = []
+    for p in proms:
+        pt = p["GovernorPromotionType"]
+        req = "First title" if p.get("BaseAbility") == "1" or not prereqs.get(pt) else \
+            " or ".join(html.escape(pname.get(x, x)) for x in prereqs[pt])
+        rows.append([
+            f'<span class="tbl-title">{name_of(p.get("Name"), m.loc)}</span>',
+            f'Tier {p.get("Level")}',
+            req,
+            render_text(p.get("Description"), m.loc),
+        ])
+    icon = m.icon_web("GovernorNormal_Shaman")
+    img = f'<img class="ico" src="{icon}" alt="">' if icon else '<div class="ico ico-blank">🧙</div>'
+    title = name_of(gov.get("Title"), m.loc) if gov and gov.get("Title", "").startswith("LOC") else ""
+    desc = render_text(f"LOC_{gt}_DESCRIPTION", m.loc) if f"LOC_{gt}_DESCRIPTION" in m.loc else ""
+    body = f"""<h1>Governor — the Shaman</h1>
+<p class="lead">A unique Prehistoric Governor. Establish and promote the Shaman to shape a city with hunt-magic, healing, and ritual.</p>
+<div class="card" style="max-width:640px">
+  <div class="card-head">{img}<div><h3>{name_of(gov.get('Name'), m.loc) if gov else 'Shaman'}</h3><div class="sub">{title}</div></div></div>
+  {desc}
+</div>
+<h2>Titles (promotions)</h2>
+{html_table(['Title', 'Tier', 'Requires', 'Effect'], rows)}"""
+    return page("Governor", "governor.html", body)
+
+
+def build_society_page(m):
+    s = next((x for x in m.rows("SecretSocieties") if "_PR_" in (x.get("SecretSocietyType") or "")), None)
+    if not s:
+        return page("Secret Society", "society.html", "<h1>Secret Society</h1><p>None found.</p>")
+    gt = s.get("GovernorType")
+    proms, prereqs = governor_promotions(m, gt)
+    rows = []
+    for p in proms:
+        unlock, effect = split_unlock(m.loc.get(p.get("Description"), ""))
+        rows.append([
+            f'<span class="tbl-title">{name_of(p.get("Name"), m.loc)}</span>',
+            html.escape(unlock) if unlock else f'Tier {p.get("Level")}',
+            render_text(effect, m.loc),
+        ])
+    chance = s.get("DiscoverAtGoodyHutBaseChance")
+    discover = f"Discovered at Tribal Villages ({chance}% chance)" if chance and chance != "0" else "Discovered while exploring"
+    icon = m.icon_web("Society_FireStone")
+    img = f'<img class="ico" src="{icon}" alt="">' if icon else '<div class="ico ico-blank">🔥</div>'
+    body = f"""<h1>Secret Society — Fire &amp; Stone</h1>
+<p class="lead">A Prehistoric-exclusive Secret Society. Requires the <strong>Secret Societies</strong> game mode.</p>
+<div class="card" style="max-width:720px">
+  <div class="card-head">{img}<div><h3>{name_of(s.get('Name'), m.loc)}</h3><div class="sub">{discover}</div></div></div>
+  <div class="desc">{render_text(s.get('Description'), m.loc)}</div>
+  {f'<blockquote>{render_inline(s.get("MembershipText"), m.loc)}</blockquote>' if s.get('MembershipText') else ''}
+</div>
+<h2>Titles</h2>
+<p class="lead">As you earn Governor Titles and advance through the eras, you unlock these tiers — each granting new powers (the Athanor building, Emberwright unit, and the Star-Quickening project).</p>
+{html_table(['Title', 'Unlocked by', 'Effect'], rows)}"""
+    return page("Secret Society", "society.html", body)
+
+
+def build_governments_page(m):
+    govs = [g for g in m.rows("Governments") if "_PR_" in (g.get("GovernmentType") or "")]
+    slots = {}
+    for r in m.rows("Government_SlotCounts"):
+        slots.setdefault(r["GovernmentType"], []).append((r.get("GovernmentSlotType"), int(r.get("NumSlots") or 0)))
+    cards = []
+    for g in govs:
+        gt = g["GovernmentType"]
+        badges = ""
+        for st, n in slots.get(gt, []):
+            info = SLOT_INFO.get(st, ("Policy", "slot-wildcard", "•"))
+            badges += f'<span class="slot {info[1]}">{info[2]} {n}× {info[0]}</span> '
+        icon = m.icon_web(gt)
+        img = f'<img class="ico" src="{icon}" alt="">' if icon else '<div class="ico ico-blank">🏛️</div>'
+        inh = render_inline(g.get("InherentBonusDesc"), m.loc)
+        acc = render_inline(g.get("AccumulatedBonusShortDesc"), m.loc)
+        cards.append(f"""<div class="card" id="{gt}">
+  <div class="card-head">{img}<div><h3>{name_of(g.get('Name'), m.loc)}</h3><div class="sub">Tier 0 Government</div></div></div>
+  <div class="gov-slots">{badges}</div>
+  <div class="mod-row"><span class="mod-k">Bonus</span> {inh}</div>
+  <div class="mod-row"><span class="mod-k">Legacy bonus</span> {acc}</div>
+</div>""")
+    body = f"""<h1>Governments</h1>
+<p class="lead">{len(govs)} Prehistoric Tier-0 governments — the earliest forms of organization, each with its own policy slots and bonus. They come with Tier-0 <a href="buildings.html">Government Plaza buildings</a> (Council House, Muster Square, Tribute Warehouse).</p>
+{card_grid(cards)}"""
+    return page("Governments", "governments.html", body)
+
+
 def build_index(m):
     counts = {
         "Technologies": len(m.rows("Technologies")),
@@ -897,6 +1022,9 @@ def build_index(m):
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "")]),
         "Myths": len(load_myth_ids()),
+        "Governments": len([g for g in m.rows("Governments") if "_PR_" in (g.get("GovernmentType") or "")]),
+        "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
+        "Society": len([x for x in m.rows("SecretSocieties") if "_PR_" in (x.get("SecretSocietyType") or "")]),
     }
     era_desc = render_text("LOC_ERA_PREHISTORIC_DESCRIPTION", m.loc)
     cards = []
@@ -1047,6 +1175,18 @@ a.ul-policy:hover{background:var(--panel);text-decoration:none;border-color:var(
 .journey{margin:.5em 0;font-size:.9rem;color:#ddd2bd}
 .journey .eff-head{color:var(--accent2)}
 .card.myth blockquote{margin-top:.7em}
+.note{max-width:74ch;background:var(--bg2);border-left:3px solid var(--accent2);
+  border-radius:6px;padding:8px 14px;color:var(--muted);font-size:.9rem;margin:0 0 1.2em}
+.tbl-wrap{overflow-x:auto;margin-top:14px}
+table.tbl{border-collapse:collapse;width:100%;min-width:640px;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden}
+table.tbl th{text-align:left;padding:10px 14px;background:var(--panel2);color:var(--accent2);
+  font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
+table.tbl td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;font-size:.92rem;color:#ddd2bd}
+table.tbl tr:last-child td{border-bottom:0}
+table.tbl td p{margin:.2em 0}
+.tbl-title{color:var(--accent);font-weight:600;white-space:nowrap}
+.gov-slots{margin:.5em 0;display:flex;flex-wrap:wrap;gap:6px}
 .mod-row{font-size:.9rem;margin:.2em 0;color:#ddd2bd}
 .mod-k{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.03em;margin-right:4px}
 .expires{margin-top:.5em;font-size:.85rem;color:var(--muted)}
@@ -1104,6 +1244,9 @@ def main():
         "wonders.html": build_wonders_page(m),
         "improvements.html": build_improvements_page(m),
         "myths.html": build_myths_page(m),
+        "governments.html": build_governments_page(m),
+        "governor.html": build_governor_page(m),
+        "society.html": build_society_page(m),
     }
     for name, content in pages.items():
         write(name, content)
