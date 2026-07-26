@@ -999,14 +999,19 @@ def build_governments_page(m):
         img = f'<img class="ico" src="{icon}" alt="">' if icon else '<div class="ico ico-blank">🏛️</div>'
         inh = render_inline(g.get("InherentBonusDesc"), m.loc)
         acc = render_inline(g.get("AccumulatedBonusShortDesc"), m.loc)
+        avail = ("Available from the start — the Prehistoric era's starting government"
+                 if gt.endswith("_FORAGER")
+                 else "Available from the start (Tier-0 alternative)")
         cards.append(f"""<div class="card" id="{gt}">
   <div class="card-head">{img}<div><h3>{name_of(g.get('Name'), m.loc)}</h3><div class="sub">Tier 0 Government</div></div></div>
   <div class="gov-slots">{badges}</div>
+  <div class="mod-row"><span class="mod-k">Availability</span> {avail}</div>
   <div class="mod-row"><span class="mod-k">Bonus</span> {inh}</div>
   <div class="mod-row"><span class="mod-k">Legacy bonus</span> {acc}</div>
 </div>""")
     body = f"""<h1>Governments</h1>
-<p class="lead">{len(govs)} Prehistoric Tier-0 governments — the earliest forms of organization, each with its own policy slots and bonus. They come with Tier-0 <a href="buildings.html">Government Plaza buildings</a> (Council House, Muster Square, Tribute Warehouse).</p>
+<p class="lead">{len(govs)} Prehistoric Tier-0 governments — the earliest forms of organization, each with its own policy slots and bonus.</p>
+<p class="note">ℹ️ Unlike policy cards, these have <strong>no civic prerequisite</strong>. <strong>Sharing Community</strong> is the era's <strong>starting government</strong> (it replaces the base Chiefdom), and both are available from the outset. To lock in a government's <em>Legacy bonus</em> you build its Tier-0 <a href="buildings.html">Government Plaza building</a> (Council House, Muster Square, Tribute Warehouse) in the Government District — which the base-game <em>State Workforce</em> civic unlocks.</p>
 {card_grid(cards)}"""
     return page("Governments", "governments.html", body)
 
