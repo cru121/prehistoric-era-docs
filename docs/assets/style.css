@@ -94,7 +94,8 @@ blockquote{border-left:3px solid var(--accent);margin:.6em 0 0;padding:.2em 0 .2
 .ul-building{border-color:#9a7a5a}
 .ul-improvement{border-color:#6a9a6a}
 .ul-policy{border-color:#9a7ac0;color:var(--ink)}
-a.ul-policy:hover{background:var(--panel);text-decoration:none;border-color:var(--accent)}
+.ul-government{border-color:#c99a4a;color:var(--ink)}
+a.ul-policy:hover,a.ul-government:hover{background:var(--panel);text-decoration:none;border-color:var(--accent)}
 .ul-regated{border-style:dashed}
 .ul-base{margin-left:5px;font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;
   color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:0 4px}

@@ -490,8 +490,9 @@ def unlock_chips(m, unlocks):
         title = ' title="Base-game content, re-gated to this prerequisite by the mod"' if regated else ""
         tag = '<span class="ul-base">base</span>' if regated else ""
         inner = f"{img}{html.escape(label)}{tag}"
-        if kind == "policy":
-            items.append(f'<a class="{cls}" href="policies.html#{type_key}"{title}>{inner}</a>')
+        link = {"policy": "policies.html", "government": "governments.html"}.get(kind)
+        if link:
+            items.append(f'<a class="{cls}" href="{link}#{type_key}"{title}>{inner}</a>')
         else:
             items.append(f'<span class="{cls}"{title}>{inner}</span>')
     return f'<div class="unlocks"><span class="ul-head">Unlocks</span>{"".join(items)}</div>'
@@ -620,16 +621,19 @@ def build_civics_page(m):
     svg = render_tree_svg(nodes, intra, placed, labels, icons, gates, gate_labels)
 
     order = sorted(civics, key=lambda r: (col[r["CivicType"]], placed[r["CivicType"]][1]))
+    fc_type, _ = first_civic(m)
+    gov_unlocks = [("government", rec["type"], rec["name"], False) for rec in government_records(m)]
     cards = []
     for r in order:
         ct = r["CivicType"]
         img = icon_img(m, ct, "📜")
+        extra = gov_unlocks if ct == fc_type else []
         cards.append(f"""<div class="card" id="{ct}">
   <div class="card-head">{img}<div><h3>{name_of(r['Name'], m.loc)}</h3>
   <div class="sub">Cost {r.get('Cost')} 🎭 · Prehistoric Era</div></div></div>
   {effects_block(m, ct)}
   {boost_block(m, 'CivicType', ct, 'Inspiration')}
-  {unlock_chips(m, unlocks_for(m, 'PrereqCivic', ct))}
+  {unlock_chips(m, unlocks_for(m, 'PrereqCivic', ct) + extra)}
 </div>""")
 
     body = f"""<h1>Civics Tree</h1>
@@ -983,35 +987,64 @@ def build_society_page(m):
     return page("Secret Society", "society.html", body)
 
 
+def first_civic(m):
+    """The root civic (no prerequisite) — where the government system unlocks."""
+    civs = [r for r in m.rows("Civics")]
+    has_pre = {e["Civic"] for e in m.canon_rows("CivicPrereqs")}
+    for r in civs:
+        if r["CivicType"] not in has_pre:
+            return r["CivicType"], m.loc.get(r.get("Name"), nice_type(m, r["CivicType"]))
+    return None, "your first civic"
+
+
+def government_records(m):
+    """The three Prehistoric Tier-0 governments. Two are new (INSERT rows);
+    Big-Man Society is the base Chiefdom re-themed by the mod (an UPDATE), so it
+    is read from that UPDATE rather than an insert."""
+    recs = []
+    for g in m.rows("Governments"):
+        gt = g.get("GovernmentType", "")
+        if "_PR_" in gt:
+            recs.append({"type": gt, "name": g.get("Name"),
+                         "inh": g.get("InherentBonusDesc"), "acc": g.get("AccumulatedBonusShortDesc")})
+    for u in parse.load_updates([os.path.join(ROOT, "Data", "Governments.sql")]):
+        if u["table"] == "Governments" and u["where"].get("GovernmentType") == "GOVERNMENT_CHIEFDOM" and u["set"].get("Name"):
+            s = u["set"]
+            recs.append({"type": "GOVERNMENT_CHIEFDOM", "name": s.get("Name"),
+                         "inh": s.get("InherentBonusDesc"), "acc": s.get("AccumulatedBonusShortDesc")})
+    order = {"GOVERNMENT_PR_FORAGER": 0, "GOVERNMENT_CHIEFDOM": 1, "GOVERNMENT_PR_WARBAND": 2}
+    recs.sort(key=lambda r: order.get(r["type"], 9))
+    return recs
+
+
 def build_governments_page(m):
-    govs = [g for g in m.rows("Governments") if "_PR_" in (g.get("GovernmentType") or "")]
+    recs = government_records(m)
     slots = {}
     for r in m.rows("Government_SlotCounts"):
         slots.setdefault(r["GovernmentType"], []).append((r.get("GovernmentSlotType"), int(r.get("NumSlots") or 0)))
+    # Big-Man Society reuses the base Chiefdom's slots (1 Military + 1 Economic), not in the mod's data.
+    slots.setdefault("GOVERNMENT_CHIEFDOM", [("SLOT_MILITARY", 1), ("SLOT_ECONOMIC", 1)])
+    fc_type, fc_name = first_civic(m)
     cards = []
-    for g in govs:
-        gt = g["GovernmentType"]
+    for rec in recs:
+        gt = rec["type"]
         badges = ""
         for st, n in slots.get(gt, []):
             info = SLOT_INFO.get(st, ("Policy", "slot-wildcard", "•"))
             badges += f'<span class="slot {info[1]}">{info[2]} {n}× {info[0]}</span> '
         icon = m.icon_web(gt)
         img = f'<img class="ico" src="{icon}" alt="">' if icon else '<div class="ico ico-blank">🏛️</div>'
-        inh = render_inline(g.get("InherentBonusDesc"), m.loc)
-        acc = render_inline(g.get("AccumulatedBonusShortDesc"), m.loc)
-        avail = ("Available from the start — the Prehistoric era's starting government"
-                 if gt.endswith("_FORAGER")
-                 else "Available from the start (Tier-0 alternative)")
+        start = " (the era's starting government)" if gt.endswith("_FORAGER") else ""
         cards.append(f"""<div class="card" id="{gt}">
-  <div class="card-head">{img}<div><h3>{name_of(g.get('Name'), m.loc)}</h3><div class="sub">Tier 0 Government</div></div></div>
+  <div class="card-head">{img}<div><h3>{name_of(rec.get('name'), m.loc)}</h3><div class="sub">Tier 0 Government{start}</div></div></div>
   <div class="gov-slots">{badges}</div>
-  <div class="mod-row"><span class="mod-k">Availability</span> {avail}</div>
-  <div class="mod-row"><span class="mod-k">Bonus</span> {inh}</div>
-  <div class="mod-row"><span class="mod-k">Legacy bonus</span> {acc}</div>
+  <div class="mod-row"><span class="mod-k">Unlocked by</span> Researching {html.escape(fc_name)} (your first civic)</div>
+  <div class="mod-row"><span class="mod-k">Bonus</span> {render_inline(rec.get('inh'), m.loc)}</div>
+  <div class="mod-row"><span class="mod-k">Legacy bonus</span> {render_inline(rec.get('acc'), m.loc)}</div>
 </div>""")
     body = f"""<h1>Governments</h1>
-<p class="lead">{len(govs)} Prehistoric Tier-0 governments — the earliest forms of organization, each with its own policy slots and bonus.</p>
-<p class="note">ℹ️ Unlike policy cards, these have <strong>no civic prerequisite</strong>. <strong>Sharing Community</strong> is the era's <strong>starting government</strong> (it replaces the base Chiefdom), and both are available from the outset. To lock in a government's <em>Legacy bonus</em> you build its Tier-0 <a href="buildings.html">Government Plaza building</a> (Council House, Muster Square, Tribute Warehouse) in the Government District — which the base-game <em>State Workforce</em> civic unlocks.</p>
+<p class="lead">{len(recs)} Prehistoric Tier-0 governments, all unlocked together when you research your first civic, <a href="civics.html#{fc_type}">{html.escape(fc_name)}</a>. <strong>Sharing Community</strong> is the era's starting government; from there you may switch between the three.</p>
+<p class="note">ℹ️ To keep a government's <em>Legacy bonus</em> after switching, build its Tier-0 <a href="buildings.html">Government Plaza building</a> (Council House, Muster Square, Tribute Warehouse) in the Government District (unlocked by the base-game <em>State Workforce</em> civic).</p>
 {card_grid(cards)}"""
     return page("Governments", "governments.html", body)
 
@@ -1027,7 +1060,7 @@ def build_index(m):
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "")]),
         "Myths": len(load_myth_ids()),
-        "Governments": len([g for g in m.rows("Governments") if "_PR_" in (g.get("GovernmentType") or "")]),
+        "Governments": len(government_records(m)),
         "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
         "Society": len([x for x in m.rows("SecretSocieties") if "_PR_" in (x.get("SecretSocietyType") or "")]),
     }
@@ -1161,7 +1194,8 @@ blockquote{border-left:3px solid var(--accent);margin:.6em 0 0;padding:.2em 0 .2
 .ul-building{border-color:#9a7a5a}
 .ul-improvement{border-color:#6a9a6a}
 .ul-policy{border-color:#9a7ac0;color:var(--ink)}
-a.ul-policy:hover{background:var(--panel);text-decoration:none;border-color:var(--accent)}
+.ul-government{border-color:#c99a4a;color:var(--ink)}
+a.ul-policy:hover,a.ul-government:hover{background:var(--panel);text-decoration:none;border-color:var(--accent)}
 .ul-regated{border-style:dashed}
 .ul-base{margin-left:5px;font-size:.62rem;text-transform:uppercase;letter-spacing:.04em;
   color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:0 4px}
