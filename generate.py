@@ -64,8 +64,8 @@ def _resolve_mod_dir():
 
 ROOT = _resolve_mod_dir()                 # mod source (input) — NOT part of this repo
 OUT = os.path.join(SCRIPT_DIR, "docs")    # generated site (committed; served by GitHub Pages)
-NOINDEX = True                            # True = ask search engines not to index (quiet link-sharing).
-                                          # Flip to False when you want the site publicly discoverable.
+NOINDEX = False                           # True = ask search engines not to index (quiet link-sharing).
+                                          # False = publicly discoverable (released 2026 with the mod author's blessing).
 MOD_AUTHOR = "AKXTM"
 MOD_URL = "https://steamcommunity.com/workshop/filedetails/?id=3739196160"
 
