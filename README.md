@@ -31,26 +31,39 @@ them from your local copy of the mod when you rebuild.
 
 ## Rebuilding after a mod update
 
-You need a local copy of the mod's files. Then:
+The generator reads the mod's files from a `PrehistoricEra/` folder next to this
+repo, which holds **one subfolder per version**:
+
+```
+PrehistoricEra/
+  v20/   (Data/ Text/ Icons/ Scripts/ PrehistoricEra.modinfo …)
+  v23/   ← highest number = the one that gets built
+prehistoric-era-docs/   (this repo)
+```
+
+To update: drop the new version in as a new `vNN/` folder, then just:
 
 ```bash
-# if a folder named PrehistoricEra sits next to this repo, just:
-python generate.py
-
-# otherwise point it at your install:
-python generate.py --mod "C:/path/to/PrehistoricEra"
+python generate.py            # auto-selects the highest vNN present
 ```
+
+`generate.py` picks the highest-numbered `vNN` folder automatically, so no path
+edits are needed. (You can still force a specific one with
+`python generate.py --mod "C:/path/to/PrehistoricEra/v23"`.)
 
 This regenerates everything under `docs/`. Commit and push, and the live site
 updates:
 
 ```bash
-git add docs
-git commit -m "Rebuild docs for mod vNN"
-git push
+git add docs && git commit -m "Rebuild docs for mod vNN" && git push
 ```
 
 Requires only Python 3 (no third-party packages).
+
+> Keep the latest version folder always; one previous version is handy for
+> "what changed" diffs. Older ones can be deleted — and an archived version only
+> needs `Data/ Text/ Icons/ Scripts/ PrehistoricEra.modinfo` (its `Art/` folder,
+> most of the size, can go).
 
 ## Notes
 

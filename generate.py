@@ -27,17 +27,39 @@ import parse  # noqa: E402
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def _latest_version_dir(base):
+    """If `base` holds versioned subfolders (v20, v23, …), return the path to the
+    highest-numbered one; otherwise None."""
+    try:
+        entries = os.listdir(base)
+    except OSError:
+        return None
+    versions = []
+    for e in entries:
+        mm = re.match(r"^v(\d+)$", e)
+        if mm and os.path.isdir(os.path.join(base, e)):
+            versions.append((int(mm.group(1)), e))
+    return os.path.join(base, max(versions)[1]) if versions else None
+
+
 def _resolve_mod_dir():
     """The mod's source files (read-only input). Priority: --mod arg, then
-    PR_MOD_DIR env var, then a PrehistoricEra folder next to this repo."""
+    PR_MOD_DIR env var, else a PrehistoricEra folder next to this repo. In every
+    case, if the chosen folder contains versioned subfolders (v20, v23, …), the
+    highest-numbered one is used — so a plain `python generate.py` always builds
+    the latest version present."""
+    base = None
     for i, a in enumerate(sys.argv):
         if a == "--mod" and i + 1 < len(sys.argv):
-            return os.path.abspath(sys.argv[i + 1])
-        if a.startswith("--mod="):
-            return os.path.abspath(a.split("=", 1)[1])
-    if os.environ.get("PR_MOD_DIR"):
-        return os.path.abspath(os.environ["PR_MOD_DIR"])
-    return os.path.abspath(os.path.join(SCRIPT_DIR, "..", "PrehistoricEra"))
+            base = sys.argv[i + 1]
+        elif a.startswith("--mod="):
+            base = a.split("=", 1)[1]
+    if base is None:
+        base = os.environ.get("PR_MOD_DIR")
+    if base is None:
+        base = os.path.join(SCRIPT_DIR, "..", "PrehistoricEra")
+    base = os.path.abspath(base)
+    return _latest_version_dir(base) or base
 
 
 ROOT = _resolve_mod_dir()                 # mod source (input) — NOT part of this repo
