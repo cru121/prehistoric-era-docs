@@ -431,6 +431,7 @@ NAV = [
     ("buildings.html", "Buildings"),
     ("wonders.html", "Wonders"),
     ("improvements.html", "Improvements"),
+    ("projects.html", "Projects"),
     ("myths.html", "Wandering Start"),
     ("governments.html", "Governments"),
     ("governor.html", "Governor"),
@@ -702,12 +703,16 @@ def build_civics_page(m):
     return page("Civics", "civics.html", body)
 
 
+FIRE_STONE_UNITS = {"UNIT_PR_EMBERWRIGHT", "UNIT_PR_FORGED"}  # Spirits of Fire and Stone secret-society units
+
+
 def build_units_page(m):
     # Exclude city-state duplicates (…_CS) — they mirror a player unit.
     units = [r for r in m.rows("Units")
              if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]
-    players = [r for r in units if "BARBARIAN" not in r["UnitType"]]
     barbs = [r for r in units if "BARBARIAN" in r["UnitType"]]
+    society = [r for r in units if r["UnitType"] in FIRE_STONE_UNITS]
+    players = [r for r in units if "BARBARIAN" not in r["UnitType"] and r["UnitType"] not in FIRE_STONE_UNITS]
 
     def card(r):
         ut = r["UnitType"]
@@ -763,10 +768,17 @@ def build_units_page(m):
 <p class="lead">Existing Civilization VI units the mod re-gates so the tech tree lines up with the new era — the Settler, Warrior, Slinger and Scout move into the Prehistoric era, while the Builder is pushed later so the Tribesperson covers the stone age.</p>
 {card_grid(cards)}"""
 
+    society_section = ""
+    if society:
+        society_section = f"""<h2>Spirits of Fire and Stone units</h2>
+<p class="lead">Units from the <a href="society.html">Fire &amp; Stone</a> secret society (requires the Secret Societies game mode).</p>
+{card_grid([card(r) for r in society])}"""
+
     body = f"""<h1>Units</h1>
-<p class="lead">{len(players)} player units for the stone age, plus {len(barbs)} prehistoric barbarian and naval units.</p>
+<p class="lead">{len(players)} player units for the stone age, plus {len(society)} secret-society units and {len(barbs)} barbarian &amp; naval units.</p>
 <h2>Player units</h2>
 {card_grid([card(r) for r in players])}
+{society_section}
 <h2>Barbarian &amp; naval units</h2>
 {card_grid([card(r) for r in barbs])}
 {mod_section}"""
@@ -839,7 +851,11 @@ def build_wonders_page(m):
 
 
 def build_improvements_page(m):
-    imps = [r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "")]
+    all_imps = [r for r in m.rows("Improvements")
+                if "_PR_" in (r.get("ImprovementType") or "") or "_NS_" in (r.get("ImprovementType") or "")]
+    baetyl = [r for r in all_imps if "BAETYL" in r["ImprovementType"]]
+    nomadic = [r for r in all_imps if "_NS_" in r["ImprovementType"]]
+    standard = [r for r in all_imps if r not in baetyl and r not in nomadic]
 
     def card(r):
         it = r["ImprovementType"]
@@ -847,9 +863,22 @@ def build_improvements_page(m):
         yields = fmt_yields(m.yields_for("Improvement_YieldChanges", "ImprovementType", it))
         return entity_card(m, it, r.get("Name"), r.get("Description"), sub, yields)
 
+    society_section = ""
+    if baetyl:
+        society_section = f"""<h2>Spirits of Fire and Stone</h2>
+<p class="lead">An optional improvement from the <a href="society.html">Fire &amp; Stone</a> secret society.</p>
+{card_grid([card(r) for r in baetyl])}"""
+    nomadic_section = ""
+    if nomadic:
+        nomadic_section = f"""<h2>Wandering Start actions</h2>
+<p class="note">These aren't built the usual way — they're the roaming band's actions (gathering, hunting, raising an Outpost, recruiting) in the <a href="myths.html">Wandering Start</a> game mode.</p>
+{card_grid([card(r) for r in nomadic])}"""
+
     body = f"""<h1>Tile Improvements</h1>
-<p class="lead">{len(imps)} improvements built during the stone age — foraging camps, pit houses, palisades, cairns and ritual sites.</p>
-{card_grid([card(r) for r in imps])}"""
+<p class="lead">{len(standard)} improvements built during the stone age — foraging camps, pit houses, palisades, cairns and ritual sites.</p>
+{card_grid([card(r) for r in standard])}
+{society_section}
+{nomadic_section}"""
     return page("Improvements", "improvements.html", body)
 
 
@@ -881,7 +910,7 @@ def load_myth_ids():
     return re.findall(r'id\s*=\s*"([A-Z_]+)"', block)
 
 
-def pedia_chapters(m, section, page_id, layout_id, skip=()):
+def pedia_chapters(m, section, page_id, layout_id, skip=(), htag="h2"):
     """Render an in-game Civilopedia page's chapters as HTML sections. Text comes
     from the LOC_PEDIA_<section>_PAGE_<page>_CHAPTER_<chapter>_TITLE/_PARA_n keys."""
     chapters = [c for c in m.rows("CivilopediaPageLayoutChapters") if c.get("PageLayoutId") == layout_id]
@@ -900,7 +929,7 @@ def pedia_chapters(m, section, page_id, layout_id, skip=()):
         if not paras:
             continue
         body = "".join(render_text(p, m.loc) for p in paras)
-        out.append(f'<section class="pedia"><h2>{html.escape(title or cid.title())}</h2>{body}</section>')
+        out.append(f'<section class="pedia"><{htag}>{html.escape(title or cid.title())}</{htag}>{body}</section>')
     return "".join(out)
 
 
@@ -1176,6 +1205,45 @@ def build_governments_page(m):
     return page("Governments", "governments.html", body)
 
 
+def build_projects_page(m):
+    projects = [p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]
+    PEDIA = {
+        "PROJECT_PR_BIG_GAME_HUNT": ("PR_BIG_GAME", "PrehistoricBigGame"),
+        "PROJECT_PR_STOCKPILE": ("PR_STOCKPILE", "PrehistoricStockpile"),
+    }
+    NOTE = {
+        "PROJECT_PR_STAR_SEED": "Atomic era · requires the Fire &amp; Stone secret society (the Star-Forge title).",
+    }
+    order = {"PROJECT_PR_BIG_GAME_HUNT": 0, "PROJECT_PR_STOCKPILE": 1, "PROJECT_PR_STAR_SEED": 2}
+    projects.sort(key=lambda p: order.get(p.get("ProjectType"), 9))
+
+    sections = []
+    for p in projects:
+        pt = p["ProjectType"]
+        icon = m.icon_web(pt)
+        img = f'<img class="ico" src="{icon}" alt="">' if icon else '<div class="ico ico-blank">⚒️</div>'
+        meta = [cost_label(p)]
+        pl = prereq_label(m, p)
+        if pl != "—":
+            meta.append(pl)
+        if pt in NOTE:
+            meta.append(NOTE[pt])
+        deep = pedia_chapters(m, "CONCEPTS", *PEDIA[pt], htag="h3") if pt in PEDIA else ""
+        sections.append(f"""<section class="proj">
+  <div class="card">
+    <div class="card-head">{img}<div><h2 style="border:0;margin:0">{name_of(p.get('Name'), m.loc)}</h2>
+    <div class="sub">{' · '.join(meta)}</div></div></div>
+    <div class="desc">{render_text(p.get('Description'), m.loc)}</div>
+  </div>
+  {deep}
+</section>""")
+
+    body = f"""<h1>Projects</h1>
+<p class="lead">City projects added by the mod. Two power the new <strong>Big Game Hunt</strong> and <strong>Stockpile</strong> systems; the third, <strong>Star-Quickening</strong>, is a late-game <a href="society.html">Fire &amp; Stone</a> secret-society project. Each entry below includes the mod's in-game Civilopedia explanation where one exists.</p>
+{"".join(sections)}"""
+    return page("Projects", "projects.html", body)
+
+
 def build_index(m):
     counts = {
         "Technologies": len(m.rows("Technologies")),
@@ -1186,7 +1254,8 @@ def build_index(m):
         "Units": len([r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]),
         "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _positive_cost(r)]),
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
-        "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "")]),
+        "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "") and "BAETYL" not in r["ImprovementType"]]),
+        "Projects": len([p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]),
         "Wandering Start": len(load_myth_ids()),
         "Governments": len(government_records(m)),
         "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
@@ -1417,6 +1486,7 @@ def main():
         "buildings.html": build_buildings_page(m),
         "wonders.html": build_wonders_page(m),
         "improvements.html": build_improvements_page(m),
+        "projects.html": build_projects_page(m),
         "myths.html": build_myths_page(m),
         "governments.html": build_governments_page(m),
         "governor.html": build_governor_page(m),

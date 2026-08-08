@@ -10,11 +10,11 @@
 <body>
 <header class="site-header">
   <div class="brand"><a href="index.html">🔥 Prehistoric Era</a><span class="ver">v23</span></div>
-  <nav><a href="index.html" class="">Overview</a><a href="tech-tree.html" class="">Technologies</a><a href="civics.html" class="">Civics</a><a href="policies.html" class="">Policies</a><a href="pantheons.html" class="">Pantheons</a><a href="units.html" class="">Units</a><a href="buildings.html" class="">Buildings</a><a href="wonders.html" class="">Wonders</a><a href="improvements.html" class="active">Improvements</a><a href="myths.html" class="">Wandering Start</a><a href="governments.html" class="">Governments</a><a href="governor.html" class="">Governor</a><a href="society.html" class="">Society</a></nav>
+  <nav><a href="index.html" class="">Overview</a><a href="tech-tree.html" class="">Technologies</a><a href="civics.html" class="">Civics</a><a href="policies.html" class="">Policies</a><a href="pantheons.html" class="">Pantheons</a><a href="units.html" class="">Units</a><a href="buildings.html" class="">Buildings</a><a href="wonders.html" class="">Wonders</a><a href="improvements.html" class="active">Improvements</a><a href="projects.html" class="">Projects</a><a href="myths.html" class="">Wandering Start</a><a href="governments.html" class="">Governments</a><a href="governor.html" class="">Governor</a><a href="society.html" class="">Society</a></nav>
 </header>
 <main>
 <h1>Tile Improvements</h1>
-<p class="lead">13 improvements built during the stone age — foraging camps, pit houses, palisades, cairns and ritual sites.</p>
+<p class="lead">12 improvements built during the stone age — foraging camps, pit houses, palisades, cairns and ritual sites.</p>
 <div class="grid"><div class="card" id="IMPROVEMENT_PR_BIG_GAME_TARGET">
   <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Hunting Target</h3><div class="sub">—</div></div></div>
   
@@ -75,16 +75,72 @@
   <div class="yields"><span class="yield">+1 ✨<span class="ylabel">Faith</span></span></div>
   <div class="desc"><p>Unlocks the Tribesperson ability to construct Observation Cairns.</p><p>+1 <span class="chip" title="Faith">✨</span> Faith. Provides <span class="chip" title="Science">🧪</span> Science equal to 50% of the tile&#x27;s Appeal. Can only be built on Hills with Charming or better Appeal, and not adjacent to another Observation Cairn.</p></div>
   
-</div><div class="card" id="IMPROVEMENT_PR_BAETYL_CRATER">
+</div></div>
+<h2>Spirits of Fire and Stone</h2>
+<p class="lead">An optional improvement from the <a href="society.html">Fire &amp; Stone</a> secret society.</p>
+<div class="grid"><div class="card" id="IMPROVEMENT_PR_BAETYL_CRATER">
   <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Baetyl Crater</h3><div class="sub">🔬 Ground Stone Tools</div></div></div>
   <div class="yields"><span class="yield">+1 🔨<span class="ylabel">Production</span></span></div>
   <div class="desc"><p>Unique to the Spirits of Fire and Stone. Built on mineral resources, permanently replacing this tile&#x27;s resource with Baetyl.</p><p>Provides +1 <span class="chip" title="Production">🔨</span> Production. Yields 1 of every unlocked mineral strategic resource per turn. Provides +1 <span class="chip" title="Production">🔨</span> Production for each adjacent Volcano, Geothermal Fissure, or Volcanic Soil. Provides +1 <span class="chip" title="Faith">✨</span> Faith if its city has an Athanor. Gains additional <span class="chip" title="Production">🔨</span> Production with technological progress. Provides +2 <span class="chip" title="Production">🔨</span> Production to an adjacent Industrial Zone.</p></div>
   
 </div></div>
+<h2>Wandering Start actions</h2>
+<p class="note">These aren't built the usual way — they're the roaming band's actions (gathering, hunting, raising an Outpost, recruiting) in the <a href="myths.html">Wandering Start</a> game mode.</p>
+<div class="grid"><div class="card" id="IMPROVEMENT_NS_GATHER">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Food Gathering</h3><div class="sub">—</div></div></div>
+  
+  <div class="desc"><p>Forage this tile for <span class="chip" title="Food">🌾</span> Food equal to its Food yield (at least 1). Can be done on Woods, Rainforest, and edible resources; after researching Gathering, also on Marsh, Floodplains, and Oases. The tile is left exhausted and recovers only after a time. The Food is added to your stores, which your bands consume each turn.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_GATHER_MAT">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Material Gathering</h3><div class="sub">—</div></div></div>
+  
+  <div class="desc"><p>Gather materials from this tile equal to its <span class="chip" title="Production">🔨</span> Production. Can be done on Woods, Rainforest, mineral resources, and fiber and spice resources; after researching Knapping, also on Hills. The tile is left exhausted and recovers only after a time. The materials are added to your stores.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_GATHER_COAST">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Coastal Gathering</h3><div class="sub">—</div></div></div>
+  
+  <div class="desc"><p>Gather both <span class="chip" title="Food">🌾</span> Food and <span class="chip" title="Production">🔨</span> Materials from this tile, equal to its yields, and add them to your stores. Can be done on flat land beside the sea after researching Shore Fishing. The tile is left exhausted and recovers only after a time.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_HUNT">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Hunt</h3><div class="sub">🔬 Hunting</div></div></div>
+  
+  <div class="desc"><p>Can be done only on animal resources. A successful hunt yields both <span class="chip" title="Food">🌾</span> Food and <span class="chip" title="Production">🔨</span> Materials and adds them to your stores, but the hunt may fail. Either way the tile is left exhausted and recovers only after a time.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_KNAP">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Flintknapping</h3><div class="sub">🔬 Stone Tools</div></div></div>
+  
+  <div class="desc"><p>Spend <span class="chip" title="Production">🔨</span> 3 materials for a temporary effect: for a few turns your bands gather more from each <span class="chip" title="Food">🌾</span> Food and <span class="chip" title="Production">🔨</span> Material Gathering, hunt with a better chance of success, and your bands and recruited units gain <span class="chip" title="Strength">⚔️</span> Combat Strength. Repeat the action to renew it.</p><p>After researching Ground Stone, the effect lasts longer and is stronger.</p><p>Costs <span class="chip" title="Production">🔨</span> 1 less on tiles next to a River, on Hills, or with  Stone. Can be done on any dry land, even outside your territory.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_CAMPFIRE">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Outpost</h3><div class="sub">🔬 Fire</div></div></div>
+  
+  <div class="desc"><p>Build an outpost here for <span class="chip" title="Production">🔨</span> 10 materials. Each turn it stands, it adds this tile&#x27;s <span class="chip" title="Food">🌾</span> Food and <span class="chip" title="Production">🔨</span> Production to your stores, and a unit defending on it gains +2 <span class="chip" title="Strength">⚔️</span> Combat Strength. If a unit from another civilization, city-state, or the barbarians steps onto it, the outpost is torn down. Can be built on any dry land, even outside your territory.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_RECRUIT_BAND">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Recruit Forager</h3><div class="sub">🔬 Fire</div></div></div>
+  
+  <div class="desc"><p>At one of your outposts, recruit a Forager for <span class="chip" title="Food">🌾</span> 2 Food and <span class="chip" title="Production">🔨</span> 5 materials.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_RECRUIT_PATH">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Recruit Pathfinder</h3><div class="sub">🔬 Fire</div></div></div>
+  
+  <div class="desc"><p>At one of your outposts, recruit a Pathfinder for <span class="chip" title="Food">🌾</span> 2 Food and <span class="chip" title="Production">🔨</span> 12 materials.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_RECRUIT_SLING">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Recruit Slinger</h3><div class="sub">🔬 Composite Tools</div></div></div>
+  
+  <div class="desc"><p>At one of your outposts, recruit a Slinger for <span class="chip" title="Food">🌾</span> 2 Food and <span class="chip" title="Production">🔨</span> 18 materials.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_NS_RECRUIT_WARRIOR">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Recruit Warrior</h3><div class="sub">🔬 Fire</div></div></div>
+  
+  <div class="desc"><p>At one of your outposts, recruit a Warrior for <span class="chip" title="Food">🌾</span> 2 Food and <span class="chip" title="Production">🔨</span> 20 materials.</p></div>
+  
+</div></div>
 </main>
 <footer class="site-footer">
   <span>Mod <a href="https://steamcommunity.com/workshop/filedetails/?id=3739196160" target="_blank" rel="noopener">Prehistoric Era</a> © AKXTM. Unofficial fan-made reference, not affiliated with the author.</span>
-  <span>Generated 2026-08-08 11:47 UTC from the mod's data files.</span>
+  <span>Generated 2026-08-08 12:05 UTC from the mod's data files.</span>
 </footer>
 </body>
 </html>
