@@ -9,13 +9,18 @@
 </head>
 <body>
 <header class="site-header">
-  <div class="brand"><a href="index.html">🔥 Prehistoric Era</a><span class="ver">v20</span></div>
+  <div class="brand"><a href="index.html">🔥 Prehistoric Era</a><span class="ver">v23</span></div>
   <nav><a href="index.html" class="">Overview</a><a href="tech-tree.html" class="">Technologies</a><a href="civics.html" class="">Civics</a><a href="policies.html" class="">Policies</a><a href="pantheons.html" class="">Pantheons</a><a href="units.html" class="">Units</a><a href="buildings.html" class="">Buildings</a><a href="wonders.html" class="">Wonders</a><a href="improvements.html" class="active">Improvements</a><a href="myths.html" class="">Myths</a><a href="governments.html" class="">Governments</a><a href="governor.html" class="">Governor</a><a href="society.html" class="">Society</a></nav>
 </header>
 <main>
 <h1>Tile Improvements</h1>
-<p class="lead">12 improvements built during the stone age — foraging camps, pit houses, palisades, cairns and ritual sites.</p>
-<div class="grid"><div class="card" id="IMPROVEMENT_PR_FORAGE">
+<p class="lead">13 improvements built during the stone age — foraging camps, pit houses, palisades, cairns and ritual sites.</p>
+<div class="grid"><div class="card" id="IMPROVEMENT_PR_BIG_GAME_TARGET">
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Hunting Target</h3><div class="sub">—</div></div></div>
+  
+  <div class="desc"><p>A hunting target belonging to your civilization. Move any outbound hunting party onto this tile and use Hunt Large Game. On success, carry the carcass to any city you own and unload it.</p></div>
+  
+</div><div class="card" id="IMPROVEMENT_PR_FORAGE">
   <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Trade Foraging</h3><div class="sub">—</div></div></div>
   
   <div class="desc"><p>A Foraging Band gathers a resource&#x27;s surplus for a one-time yield, without consuming the resource. What it yields depends on the resource: raw materials such as Stone, Copper, and Ivory give <span class="chip" title="Production">🔨</span> Production; foodstuffs and trade goods such as Wheat, Salt, and Furs give <span class="chip" title="Gold">💰</span> Gold; sacred goods such as Incense and Wine give <span class="chip" title="Faith">✨</span> Faith; medicinal goods such as Spices and Mercury give <span class="chip" title="Science">🧪</span> Science; and ornaments such as Dyes, Jade, and Silk give <span class="chip" title="Culture">🎭</span> Culture.</p></div>
@@ -52,8 +57,8 @@
   
 </div><div class="card" id="IMPROVEMENT_PR_FISHING_CAMP">
   <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Fishing Camp</h3><div class="sub">🔬 Shore Fishing</div></div></div>
-  <div class="yields"><span class="yield">+1 🌾<span class="ylabel">Food</span></span></div>
-  <div class="desc"><p>Unlocks the Tribesperson ability to construct Fishing Camps.</p><p>+1 <span class="chip" title="Food">🌾</span> Food. Must be built on coastal land.</p></div>
+  <div class="yields"><span class="yield">+1 🌾<span class="ylabel">Food</span></span> <span class="yield">+1 💰<span class="ylabel">Gold</span></span></div>
+  <div class="desc"><p>Unlocks the Tribesperson ability to construct Fishing Camps.</p><p>+1 <span class="chip" title="Food">🌾</span> Food and +1 <span class="chip" title="Gold">💰</span> Gold. Must be built on flat coastal land.</p></div>
   
 </div><div class="card" id="IMPROVEMENT_PR_PITHOUSE">
   <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Pit House</h3><div class="sub">🔬 Sedentism</div></div></div>
@@ -63,7 +68,7 @@
 </div><div class="card" id="IMPROVEMENT_PR_PALISADE">
   <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Palisade</h3><div class="sub">🔬 Sedentism</div></div></div>
   
-  <div class="desc"><p>Unlocks the Tribesperson and Builder ability to construct Palisades.</p><p>Grants +2 <span class="chip" title="Strength">⚔️</span> Combat Strength to units defending on this tile. Reduces the Appeal of adjacent tiles by 1. Can only be built on the frontier of your territory.</p></div>
+  <div class="desc"><p>Unlocks the Tribesperson and Builder ability to construct Palisades.</p><p>Grants +2 <span class="chip" title="Strength">⚔️</span> Combat Strength to units defending on this tile, which automatically gain 2 turns of fortification. Reduces the Appeal of adjacent tiles by 1. Can only be built on the frontier of your territory.</p></div>
   
 </div><div class="card" id="IMPROVEMENT_PR_OBSERVATION_CAIRN">
   <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Observation Cairn</h3><div class="sub">🔬 Observation of Nature</div></div></div>
@@ -71,15 +76,15 @@
   <div class="desc"><p>Unlocks the Tribesperson ability to construct Observation Cairns.</p><p>+1 <span class="chip" title="Faith">✨</span> Faith. Provides <span class="chip" title="Science">🧪</span> Science equal to 50% of the tile&#x27;s Appeal. Can only be built on Hills with Charming or better Appeal, and not adjacent to another Observation Cairn.</p></div>
   
 </div><div class="card" id="IMPROVEMENT_PR_BAETYL_CRATER">
-  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Baetyl Crater</h3><div class="sub">—</div></div></div>
+  <div class="card-head"><div class="ico ico-blank">⬦</div><div><h3>Baetyl Crater</h3><div class="sub">🔬 Ground Stone Tools</div></div></div>
   <div class="yields"><span class="yield">+1 🔨<span class="ylabel">Production</span></span></div>
-  <div class="desc"><p>A shrine that appears when a member of the Spirits of Fire and Stone completes a Mine or Quarry on a resource.</p><p>Provides +1 <span class="chip" title="Production">🔨</span> Production. Yields 1 of every unlocked mineral strategic resource per turn. Provides +1 <span class="chip" title="Production">🔨</span> Production for each adjacent Volcano, Geothermal Fissure, or Volcanic Soil. Provides +1 <span class="chip" title="Faith">✨</span> Faith if its city has an Athanor. Gains additional <span class="chip" title="Production">🔨</span> Production with technological progress. Provides +2 <span class="chip" title="Production">🔨</span> Production to an adjacent Industrial Zone.</p></div>
+  <div class="desc"><p>Unique to the Spirits of Fire and Stone. Built on mineral resources, permanently replacing this tile&#x27;s resource with Baetyl.</p><p>Provides +1 <span class="chip" title="Production">🔨</span> Production. Yields 1 of every unlocked mineral strategic resource per turn. Provides +1 <span class="chip" title="Production">🔨</span> Production for each adjacent Volcano, Geothermal Fissure, or Volcanic Soil. Provides +1 <span class="chip" title="Faith">✨</span> Faith if its city has an Athanor. Gains additional <span class="chip" title="Production">🔨</span> Production with technological progress. Provides +2 <span class="chip" title="Production">🔨</span> Production to an adjacent Industrial Zone.</p></div>
   
 </div></div>
 </main>
 <footer class="site-footer">
   <span>Mod <a href="https://steamcommunity.com/workshop/filedetails/?id=3739196160" target="_blank" rel="noopener">Prehistoric Era</a> © AKXTM. Unofficial fan-made reference, not affiliated with the author.</span>
-  <span>Generated 2026-07-26 14:39 UTC from the mod's data files.</span>
+  <span>Generated 2026-08-08 11:22 UTC from the mod's data files.</span>
 </footer>
 </body>
 </html>

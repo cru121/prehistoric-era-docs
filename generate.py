@@ -507,6 +507,18 @@ def nice_type(m, type_key):
     return base.replace("_", " ").title()
 
 
+def cost_label(r):
+    """'Cost N' for trainable things; 'Special' for spawned/granted units
+    (the mod marks those with Cost = -1)."""
+    c = r.get("Cost")
+    try:
+        if float(c) > 0:
+            return f"Cost {c}"
+    except (TypeError, ValueError):
+        pass
+    return "Special (granted, not trained)"
+
+
 def prereq_label(m, r):
     bits = []
     if r.get("PrereqTech"):
@@ -668,13 +680,15 @@ def build_civics_page(m):
 
 
 def build_units_page(m):
-    units = [r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "")]
+    # Exclude city-state duplicates (…_CS) — they mirror a player unit.
+    units = [r for r in m.rows("Units")
+             if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]
     players = [r for r in units if "BARBARIAN" not in r["UnitType"]]
     barbs = [r for r in units if "BARBARIAN" in r["UnitType"]]
 
     def card(r):
         ut = r["UnitType"]
-        sub = f"Cost {r.get('Cost')} · {prereq_label(m, r)}"
+        sub = f"{cost_label(r)} · {prereq_label(m, r)}"
         stats = []
         if r.get("Combat"):
             stats.append(("Strength", r["Combat"]))
@@ -736,9 +750,18 @@ def build_units_page(m):
     return page("Units", "units.html", body)
 
 
+def _positive_cost(r):
+    try:
+        return float(r.get("Cost")) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def build_buildings_page(m):
+    # Cost > 0 filters out internal reward-token buildings (Cost = -1), e.g. the
+    # invisible "Processing the Great Hunt" buildings that grant scaled yields.
     blds = [r for r in m.rows("Buildings")
-            if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder")]
+            if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _positive_cost(r)]
 
     def card(r):
         bt = r["BuildingType"]
@@ -1100,8 +1123,8 @@ def build_index(m):
         "Civics": len(m.rows("Civics")),
         "Policies": len([r for r in m.rows("Policies") if "_PR_" in (r.get("PolicyType") or "")]),
         "Pantheons": len([b for b in m.rows("Beliefs") if b.get("BeliefClassType") == "BELIEF_CLASS_PANTHEON" and "_PR_" in (b.get("BeliefType") or "")]),
-        "Units": len([r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "")]),
-        "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder")]),
+        "Units": len([r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]),
+        "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _positive_cost(r)]),
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "")]),
         "Myths": len(load_myth_ids()),
