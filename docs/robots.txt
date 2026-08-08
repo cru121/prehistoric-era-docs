@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://cru121.github.io/prehistoric-era-docs/sitemap.xml

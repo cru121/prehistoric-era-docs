@@ -68,6 +68,8 @@ NOINDEX = False                           # True = ask search engines not to ind
                                           # False = publicly discoverable (released 2026 with the mod author's blessing).
 MOD_AUTHOR = "AKXTM"
 MOD_URL = "https://steamcommunity.com/workshop/filedetails/?id=3739196160"
+WIKI_BASE = "https://civilization.fandom.com/wiki/"
+SITE_URL = "https://cru121.github.io/prehistoric-era-docs/"
 
 
 def _read_mod_version():
@@ -232,6 +234,14 @@ class Model:
             with open(bp, encoding="utf-8") as fh:
                 self.base_policies = {k: v for k, v in json.load(fh).items()
                                       if not k.startswith("_")}
+        # Verified external links to the Fandom wiki for base-game entities.
+        self.wiki = {}
+        wl = os.path.join(os.path.dirname(__file__), "wiki_links.json")
+        if os.path.exists(wl):
+            with open(wl, encoding="utf-8") as fh:
+                self.wiki = {k: v for k, v in json.load(fh).items() if not k.startswith("_")}
+        # Which BUILDING types are wonders (they live on a different page).
+        self.wonder_types = {b["BuildingType"] for b in self.rows("Buildings") if b.get("IsWonder")}
 
     _REGATE_TABLES = {
         "Units": ("UnitType", "unit"),
@@ -550,9 +560,9 @@ def unlock_chips(m, unlocks):
         title = ' title="Base-game content, re-gated to this prerequisite by the mod"' if regated else ""
         tag = '<span class="ul-base">base</span>' if regated else ""
         inner = f"{img}{html.escape(label)}{tag}"
-        link = {"policy": "policies.html", "government": "governments.html"}.get(kind)
-        if link:
-            items.append(f'<a class="{cls}" href="{link}#{type_key}"{title}>{inner}</a>')
+        href = internal_href(m, type_key)
+        if href:
+            items.append(f'<a class="{cls}" href="{href}"{title}>{inner}</a>')
         else:
             items.append(f'<span class="{cls}"{title}>{inner}</span>')
     return f'<div class="unlocks"><span class="ul-head">Unlocks</span>{"".join(items)}</div>'
@@ -565,6 +575,38 @@ def nice_type(m, type_key):
         return m.loc[guess]
     base = re.sub(r"^(TECH|CIVIC|UNIT|BUILDING|IMPROVEMENT|POLICY|DISTRICT|RESOURCE)_", "", type_key)
     return base.replace("_", " ").title()
+
+
+def internal_href(m, type_key):
+    """URL#anchor of the page documenting this type, if it's mod-owned content."""
+    if not type_key or ("_PR_" not in type_key and "_NS_" not in type_key):
+        return None
+    prefix_page = [
+        ("TECH_", "tech-tree.html"), ("CIVIC_", "civics.html"),
+        ("UNIT_", "units.html"), ("IMPROVEMENT_", "improvements.html"),
+        ("POLICY_", "policies.html"), ("GOVERNMENT_", "governments.html"),
+        ("PROJECT_", "projects.html"), ("BELIEF_", "pantheons.html"),
+    ]
+    if type_key.startswith("BUILDING_"):
+        page = "wonders.html" if type_key in m.wonder_types else "buildings.html"
+        return f"{page}#{type_key}"
+    for pre, page in prefix_page:
+        if type_key.startswith(pre):
+            return f"{page}#{type_key}"
+    return None
+
+
+def ref_link(m, display, type_key=None):
+    """Wrap a name in a link: internal page for mod content, Fandom wiki for
+    base-game entities (verified slugs only), or plain text if neither."""
+    disp = html.escape(display)
+    href = internal_href(m, type_key) if type_key else None
+    if href:
+        return f'<a href="{href}">{disp}</a>'
+    slug = m.wiki.get(display)
+    if slug:
+        return f'<a href="{WIKI_BASE}{slug}" target="_blank" rel="noopener">{disp}</a>'
+    return disp
 
 
 def cost_label(r):
@@ -582,9 +624,11 @@ def cost_label(r):
 def prereq_label(m, r):
     bits = []
     if r.get("PrereqTech"):
-        bits.append(f'🔬 {nice_type(m, r["PrereqTech"])}')
+        t = r["PrereqTech"]
+        bits.append(f'🔬 {ref_link(m, nice_type(m, t), t)}')
     if r.get("PrereqCivic"):
-        bits.append(f'🎭 {nice_type(m, r["PrereqCivic"])}')
+        c = r["PrereqCivic"]
+        bits.append(f'🎭 {ref_link(m, nice_type(m, c), c)}')
     return " · ".join(bits) if bits else "—"
 
 
@@ -1051,7 +1095,7 @@ def build_policies_page(m):
             succ_name = nice_type(m, succ)
             era_s = f", {era} era" if era else ""
             tip = f"Superseded by {succ_name} ({by}{era_s})"
-            exp = f'<div class="expires" title="{html.escape(tip)}">⏳ Obsoleted by <b>{html.escape(by)}</b>.</div>'
+            exp = f'<div class="expires" title="{html.escape(tip)}">⏳ Obsoleted by <b>{ref_link(m, by)}</b>.</div>'
         else:
             exp = '<div class="expires perm">♾️ No successor — remains available.</div>'
         return f"""<div class="card" id="{pt}">
@@ -1275,12 +1319,12 @@ def build_civleaders_page(m):
     regates = civ_regates(m)
 
     def regate_table(items):
-        rows = [[f'<span class="tbl-title">{html.escape(nice_type(m, k))}</span>',
-                 html.escape(nice_type(m, p))] for k, p in items]
+        rows = [[f'<span class="tbl-title">{ref_link(m, nice_type(m, k), k)}</span>',
+                 ref_link(m, nice_type(m, p), p)] for k, p in items]
         return html_table(["Unique item", "Now unlocked by"], rows)
 
-    leader_rows = [[f'<span class="tbl-title">{html.escape(ld)}</span>', html.escape(ab),
-                    render_inline(eff, m.loc), html.escape(nice_type(m, gate))]
+    leader_rows = [[f'<span class="tbl-title">{ref_link(m, ld)}</span>', html.escape(ab),
+                    render_inline(eff, m.loc), ref_link(m, nice_type(m, gate), gate)]
                    for ld, ab, eff, gate in LEADER_GATES]
 
     body = f"""<h1>Civilization &amp; Leader Changes</h1>
@@ -1601,7 +1645,15 @@ def main():
     for name, content in pages.items():
         write(name, content)
         print(f"  wrote {name}")
+
+    # sitemap.xml + robots.txt for search engines
+    urls = "".join(f"<url><loc>{SITE_URL}{h}</loc></url>" for h, _ in NAV)
+    write("sitemap.xml", f'<?xml version="1.0" encoding="UTF-8"?>\n'
+          f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n')
+    write("robots.txt", f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}sitemap.xml\n")
+
     print(f"  copied {n_icons} icons")
+    print(f"  wrote sitemap.xml, robots.txt")
     print(f"Done -> {OUT}")
 
 
