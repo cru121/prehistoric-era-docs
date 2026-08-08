@@ -450,7 +450,7 @@ NAV_STANDALONE = ["myths.html"]  # Wandering Start — a top-level link
 
 def _nav_html(active):
     label = dict(NAV)
-    parts = [f'<a class="navlink {"active" if active == "index.html" else ""}" href="index.html">Overview</a>']
+    parts = []  # "Overview" is intentionally omitted — the brand logo links home.
     for gname, hrefs in NAV_GROUPS:
         links = "".join(
             f'<a href="{h}" class="{"active" if h == active else ""}">{html.escape(label[h])}</a>'
