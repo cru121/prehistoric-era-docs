@@ -436,6 +436,7 @@ NAV = [
     ("governments.html", "Governments"),
     ("governor.html", "Governor"),
     ("society.html", "Society"),
+    ("civleaders.html", "Civs & Leaders"),
 ]
 
 
@@ -1205,6 +1206,60 @@ def build_governments_page(m):
     return page("Governments", "governments.html", body)
 
 
+# Leader abilities the mod gates behind a prehistoric unlock. Curated from the
+# mod's Data/LeaderTileYieldGating.sql (its English header documents exactly these).
+LEADER_GATES = [
+    ("Teddy Roosevelt", "Bull Moose — Antiquities and Parks",
+     "+2 [ICON_Science] Science on Breathtaking tiles adjacent to a Natural Wonder or Mountain", "TECH_PR_OBSERVATION"),
+    ("Teddy Roosevelt", "Bull Moose — Antiquities and Parks",
+     "+2 [ICON_Culture] Culture on Breathtaking tiles adjacent to a Wonder or Woods", "CIVIC_PR_PRIMAL_ART"),
+    ("Cleopatra (Ptolemaic)", "Arrival of Hapi",
+     "+1 [ICON_Culture] Culture on Floodplains resource tiles (the Food half is unchanged)", "CIVIC_PR_PRIMAL_ART"),
+]
+
+
+def civ_regates(m):
+    """Base-game unique units/improvements the mod re-gates (from Compat_Civs.sql)
+    so they don't appear on turn 1 in the new early era."""
+    out = {"unit": [], "improvement": []}
+    cols = {"Units": ("UnitType", "unit"), "Improvements": ("ImprovementType", "improvement"),
+            "Buildings": ("BuildingType", "improvement")}
+    for u in parse.load_updates([os.path.join(ROOT, "Data", "Compat_Civs.sql")]):
+        meta = cols.get(u["table"])
+        if not meta:
+            continue
+        col, kind = meta
+        key = u["where"].get(col)
+        newp = u["set"].get("PrereqTech") or u["set"].get("PrereqCivic")
+        if key and newp:
+            out[kind].append((key, newp))
+    return out
+
+
+def build_civleaders_page(m):
+    regates = civ_regates(m)
+
+    def regate_table(items):
+        rows = [[f'<span class="tbl-title">{html.escape(nice_type(m, k))}</span>',
+                 html.escape(nice_type(m, p))] for k, p in items]
+        return html_table(["Unique item", "Now unlocked by"], rows)
+
+    leader_rows = [[f'<span class="tbl-title">{html.escape(ld)}</span>', html.escape(ab),
+                    render_inline(eff, m.loc), html.escape(nice_type(m, gate))]
+                   for ld, ab, eff, gate in LEADER_GATES]
+
+    body = f"""<h1>Civilization &amp; Leader Changes</h1>
+<p class="lead">Because the game now begins in the Stone Age, the mod holds back some base-game civilization and leader features that would otherwise be available on turn 1 — they instead unlock at an appropriate technology or civic. (These apply only when you own the relevant civilization/DLC.)</p>
+<h2>Unique units</h2>
+{regate_table(regates["unit"])}
+<h2>Unique improvements</h2>
+{regate_table(regates["improvement"])}
+<h2>Leader abilities</h2>
+<p class="note">A few leaders draw yields straight from the land; those yields stay dark until the matching prehistoric unlock is researched. (Transcribed from the mod's <code>LeaderTileYieldGating.sql</code>.)</p>
+{html_table(["Leader", "Ability", "Gated effect", "Unlocks with"], leader_rows)}"""
+    return page("Civs & Leaders", "civleaders.html", body)
+
+
 def build_projects_page(m):
     projects = [p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]
     PEDIA = {
@@ -1260,6 +1315,7 @@ def build_index(m):
         "Governments": len(government_records(m)),
         "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
         "Society": len([x for x in m.rows("SecretSocieties") if "_PR_" in (x.get("SecretSocietyType") or "")]),
+        "Civs & Leaders": sum(len(v) for v in civ_regates(m).values()) + len(LEADER_GATES),
     }
     era_desc = render_text("LOC_ERA_PREHISTORIC_DESCRIPTION", m.loc)
     cards = []
@@ -1491,6 +1547,7 @@ def main():
         "governments.html": build_governments_page(m),
         "governor.html": build_governor_page(m),
         "society.html": build_society_page(m),
+        "civleaders.html": build_civleaders_page(m),
     }
     for name, content in pages.items():
         write(name, content)
