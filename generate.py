@@ -439,12 +439,32 @@ NAV = [
     ("civleaders.html", "Civs & Leaders"),
 ]
 
+# Grouped view of NAV for the header (collapsible dropdowns keep 15 pages tidy).
+NAV_GROUPS = [
+    ("Trees", ["tech-tree.html", "civics.html"]),
+    ("Content", ["units.html", "buildings.html", "wonders.html", "improvements.html", "projects.html"]),
+    ("Systems", ["policies.html", "pantheons.html", "governments.html", "governor.html", "society.html", "civleaders.html"]),
+]
+NAV_STANDALONE = ["myths.html"]  # Wandering Start — a top-level link
+
+
+def _nav_html(active):
+    label = dict(NAV)
+    parts = [f'<a class="navlink {"active" if active == "index.html" else ""}" href="index.html">Overview</a>']
+    for gname, hrefs in NAV_GROUPS:
+        links = "".join(
+            f'<a href="{h}" class="{"active" if h == active else ""}">{html.escape(label[h])}</a>'
+            for h in hrefs
+        )
+        gcls = "navgroup active-group" if active in hrefs else "navgroup"
+        parts.append(f'<details class="{gcls}"><summary>{gname}</summary><div class="navpanel">{links}</div></details>')
+    for h in NAV_STANDALONE:
+        parts.append(f'<a class="navlink {"active" if h == active else ""}" href="{h}">{html.escape(label[h])}</a>')
+    return "".join(parts)
+
 
 def page(title, active, body):
-    nav = "".join(
-        f'<a href="{href}" class="{"active" if href == active else ""}">{label}</a>'
-        for href, label in NAV
-    )
+    nav = _nav_html(active)
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     return f"""<!doctype html>
 <html lang="en">
@@ -1376,10 +1396,24 @@ code{background:var(--panel);padding:.1em .4em;border-radius:4px;font-size:.9em}
 .brand a{font-weight:700;color:var(--ink);font-size:1.15rem}
 .brand .ver{margin-left:8px;font-size:.7rem;color:var(--muted);border:1px solid var(--line);
   padding:1px 6px;border-radius:10px;vertical-align:middle}
-.site-header nav{display:flex;gap:4px;flex-wrap:wrap}
-.site-header nav a{padding:6px 12px;border-radius:6px;color:var(--muted);font-size:.92rem}
-.site-header nav a:hover{background:var(--panel);text-decoration:none;color:var(--ink)}
-.site-header nav a.active{background:var(--accent);color:#1a140c;font-weight:600}
+.site-header nav{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.navlink{padding:6px 12px;border-radius:6px;color:var(--muted);font-size:.92rem}
+.navlink:hover{background:var(--panel);text-decoration:none;color:var(--ink)}
+.navlink.active{background:var(--accent);color:#1a140c;font-weight:600}
+.navgroup{position:relative}
+.navgroup > summary{list-style:none;cursor:pointer;padding:6px 12px;border-radius:6px;
+  color:var(--muted);font-size:.92rem;user-select:none;white-space:nowrap}
+.navgroup > summary::-webkit-details-marker{display:none}
+.navgroup > summary::after{content:"▾";margin-left:5px;opacity:.55;font-size:.8em}
+.navgroup > summary:hover{background:var(--panel);color:var(--ink)}
+.navgroup.active-group > summary{color:var(--accent2);font-weight:600}
+.navgroup[open] > summary{background:var(--panel);color:var(--ink)}
+.navpanel{position:absolute;top:100%;left:0;margin-top:6px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 28px #0009;
+  display:flex;flex-direction:column;min-width:190px;padding:6px;z-index:30}
+.navpanel a{padding:7px 12px;border-radius:6px;color:var(--muted);font-size:.92rem;white-space:nowrap}
+.navpanel a:hover{background:var(--panel);text-decoration:none;color:var(--ink)}
+.navpanel a.active{background:var(--accent);color:#1a140c;font-weight:600}
 
 .site-footer{max-width:1180px;margin:0 auto;padding:24px 20px;color:var(--muted);
   font-size:.82rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
