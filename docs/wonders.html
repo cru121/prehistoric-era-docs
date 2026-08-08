@@ -10,7 +10,7 @@
 <body>
 <header class="site-header">
   <div class="brand"><a href="index.html">🔥 Prehistoric Era</a><span class="ver">v23</span></div>
-  <nav><a class="navlink " href="index.html">Overview</a><details class="navgroup"><summary>Trees</summary><div class="navpanel"><a href="tech-tree.html" class="">Technologies</a><a href="civics.html" class="">Civics</a></div></details><details class="navgroup active-group"><summary>Content</summary><div class="navpanel"><a href="units.html" class="">Units</a><a href="buildings.html" class="">Buildings</a><a href="wonders.html" class="active">Wonders</a><a href="improvements.html" class="">Improvements</a><a href="projects.html" class="">Projects</a></div></details><details class="navgroup"><summary>Systems</summary><div class="navpanel"><a href="policies.html" class="">Policies</a><a href="pantheons.html" class="">Pantheons</a><a href="governments.html" class="">Governments</a><a href="governor.html" class="">Governor</a><a href="society.html" class="">Society</a><a href="civleaders.html" class="">Civs &amp; Leaders</a></div></details><a class="navlink " href="myths.html">Wandering Start</a></nav>
+  <nav><a class="navlink " href="index.html">Overview</a><details name="nav" class="navgroup"><summary>Trees</summary><div class="navpanel"><a href="tech-tree.html" class="">Technologies</a><a href="civics.html" class="">Civics</a></div></details><details name="nav" class="navgroup active-group"><summary>Content</summary><div class="navpanel"><a href="units.html" class="">Units</a><a href="buildings.html" class="">Buildings</a><a href="wonders.html" class="active">Wonders</a><a href="improvements.html" class="">Improvements</a><a href="projects.html" class="">Projects</a></div></details><details name="nav" class="navgroup"><summary>Systems</summary><div class="navpanel"><a href="policies.html" class="">Policies</a><a href="pantheons.html" class="">Pantheons</a><a href="governments.html" class="">Governments</a><a href="governor.html" class="">Governor</a><a href="society.html" class="">Society</a><a href="civleaders.html" class="">Civs &amp; Leaders</a></div></details><a class="navlink " href="myths.html">Wandering Start</a></nav>
 </header>
 <main>
 <h1>Wonders</h1>
@@ -44,7 +44,21 @@
 </main>
 <footer class="site-footer">
   <span>Mod <a href="https://steamcommunity.com/workshop/filedetails/?id=3739196160" target="_blank" rel="noopener">Prehistoric Era</a> © AKXTM. Unofficial fan-made reference, not affiliated with the author.</span>
-  <span>Generated 2026-08-08 12:30 UTC from the mod's data files.</span>
+  <span>Generated 2026-08-08 12:33 UTC from the mod's data files.</span>
 </footer>
+<script>
+// Nav dropdowns: only one open at a time, and close when clicking away.
+(function(){
+  var groups=document.querySelectorAll('details.navgroup');
+  groups.forEach(function(d){
+    d.addEventListener('toggle',function(){
+      if(d.open) groups.forEach(function(o){ if(o!==d) o.removeAttribute('open'); });
+    });
+  });
+  document.addEventListener('click',function(e){
+    groups.forEach(function(d){ if(d.open && !d.contains(e.target)) d.removeAttribute('open'); });
+  });
+})();
+</script>
 </body>
 </html>

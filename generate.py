@@ -457,7 +457,8 @@ def _nav_html(active):
             for h in hrefs
         )
         gcls = "navgroup active-group" if active in hrefs else "navgroup"
-        parts.append(f'<details class="{gcls}"><summary>{gname}</summary><div class="navpanel">{links}</div></details>')
+        # name="nav" = native exclusive accordion (modern browsers); the script below is the fallback.
+        parts.append(f'<details name="nav" class="{gcls}"><summary>{gname}</summary><div class="navpanel">{links}</div></details>')
     for h in NAV_STANDALONE:
         parts.append(f'<a class="navlink {"active" if h == active else ""}" href="{h}">{html.escape(label[h])}</a>')
     return "".join(parts)
@@ -487,6 +488,20 @@ def page(title, active, body):
   <span>Mod <a href="{MOD_URL}" target="_blank" rel="noopener">Prehistoric Era</a> © {MOD_AUTHOR}. Unofficial fan-made reference, not affiliated with the author.</span>
   <span>Generated {stamp} from the mod's data files.</span>
 </footer>
+<script>
+// Nav dropdowns: only one open at a time, and close when clicking away.
+(function(){{
+  var groups=document.querySelectorAll('details.navgroup');
+  groups.forEach(function(d){{
+    d.addEventListener('toggle',function(){{
+      if(d.open) groups.forEach(function(o){{ if(o!==d) o.removeAttribute('open'); }});
+    }});
+  }});
+  document.addEventListener('click',function(e){{
+    groups.forEach(function(d){{ if(d.open && !d.contains(e.target)) d.removeAttribute('open'); }});
+  }});
+}})();
+</script>
 </body>
 </html>"""
 
