@@ -118,6 +118,7 @@ ICON_MAP = {
     "Envoy": ("🤝", "Envoy"),
     "GoldenAge": ("🌅", "Golden Age"),
     "Bullet": ("•", ""),
+    "BULLET": ("•", ""),
     "PromotionGeneric": ("🎖️", "Promotion"),
     "Charges": ("🛠️", "Build Charges"),
 }
@@ -430,7 +431,7 @@ NAV = [
     ("buildings.html", "Buildings"),
     ("wonders.html", "Wonders"),
     ("improvements.html", "Improvements"),
-    ("myths.html", "Myths"),
+    ("myths.html", "Wandering Start"),
     ("governments.html", "Governments"),
     ("governor.html", "Governor"),
     ("society.html", "Society"),
@@ -880,6 +881,29 @@ def load_myth_ids():
     return re.findall(r'id\s*=\s*"([A-Z_]+)"', block)
 
 
+def pedia_chapters(m, section, page_id, layout_id, skip=()):
+    """Render an in-game Civilopedia page's chapters as HTML sections. Text comes
+    from the LOC_PEDIA_<section>_PAGE_<page>_CHAPTER_<chapter>_TITLE/_PARA_n keys."""
+    chapters = [c for c in m.rows("CivilopediaPageLayoutChapters") if c.get("PageLayoutId") == layout_id]
+    chapters.sort(key=lambda c: int(c.get("SortIndex") or 0))
+    out = []
+    for c in chapters:
+        cid = c.get("ChapterId")
+        if cid in skip:
+            continue
+        base = f"LOC_PEDIA_{section}_PAGE_{page_id}_CHAPTER_{cid}"
+        title = m.loc.get(base + "_TITLE")
+        paras, n = [], 1
+        while f"{base}_PARA_{n}" in m.loc:
+            paras.append(f"{base}_PARA_{n}")
+            n += 1
+        if not paras:
+            continue
+        body = "".join(render_text(p, m.loc) for p in paras)
+        out.append(f'<section class="pedia"><h2>{html.escape(title or cid.title())}</h2>{body}</section>')
+    return "".join(out)
+
+
 def build_myths_page(m):
     ids = load_myth_ids()
     cards = []
@@ -900,12 +924,16 @@ def build_myths_page(m):
   {flavor}
 </div>""")
 
-    intro = render_text("LOC_PR_MYTH_POPUP_BODY", m.loc)
-    body = f"""<h1>Origin Myths</h1>
-<p class="lead">A <strong>Wandering Start</strong> feature. When your roaming band founds its first city, the elders tell the story of how your people came to be — and you choose one of <strong>{len(ids)}</strong> origin myths, each granting a permanent bonus. Which myths are offered is shaped by the journey your band actually walked (the "journey" line on each card below is what earns it).</p>
-<div class="era-desc">{intro}</div>
-<div class="grid" style="margin-top:20px">{"".join(cards)}</div>"""
-    return page("Origin Myths", "myths.html", body)
+    # In-game Civilopedia overview of the whole mode (skip its MYTHS chapter — the
+    # myth cards below cover that in full).
+    overview = pedia_chapters(m, "CONCEPTS", "NOMADIC_START", "NomadicStart", skip=("MYTHS",))
+    body = f"""<h1>Wandering Start</h1>
+<p class="lead">An optional game mode: you begin not with a Settler but a roaming band, and live off the land until you found your first city — where you choose an <strong>Origin Myth</strong>. The overview below is drawn from the mod's in-game Civilopedia.</p>
+{overview}
+<h2>The {len(ids)} Origin Myths</h2>
+<p class="lead">When your band founds its first city, you choose one of these — each grants a permanent bonus, and which are offered is shaped by the journey your band walked (the "journey" line is what earns each one).</p>
+<div class="grid" style="margin-top:14px">{"".join(cards)}</div>"""
+    return page("Wandering Start", "myths.html", body)
 
 
 SLOT_INFO = {
@@ -918,7 +946,10 @@ SLOT_INFO = {
 
 
 def build_policies_page(m):
-    pols = [r for r in m.rows("Policies") if "_PR_" in (r.get("PolicyType") or "")]
+    pr = [r for r in m.rows("Policies") if "_PR_" in (r.get("PolicyType") or "")
+          and not (r.get("PolicyType") or "").startswith("POLICY_GOV_")]  # gov legacy cards live on the Governments page
+    std = [p for p in pr if "_NS_" not in p["PolicyType"]]
+    ns = [p for p in pr if "_NS_" in p["PolicyType"]]
     obsolete = {o["PolicyType"]: o.get("ObsoletePolicy")
                 for o in m.rows("ObsoletePolicies") if o.get("PolicyType")}
     # PrereqCivic of every policy the mod itself defines (covers PR -> PR chains).
@@ -944,10 +975,6 @@ def build_policies_page(m):
     civic_order = sorted(cnodes, key=lambda c: (ccol.get(c, 99), crow.get(c, 0)))
     rank = {c: i for i, c in enumerate(civic_order)}
 
-    groups = {}
-    for p in pols:
-        groups.setdefault(p.get("PrereqCivic"), []).append(p)
-
     def policy_card(p):
         pt = p["PolicyType"]
         slot = SLOT_INFO.get(p.get("GovernmentSlotType"), ("Policy", "slot-wildcard", "•"))
@@ -968,19 +995,29 @@ def build_policies_page(m):
   {exp}
 </div>"""
 
-    sections = []
-    for civic in sorted(groups, key=lambda c: rank.get(c, 99)):
-        cname = nice_type(m, civic) if civic else "Other"
-        cards = "".join(policy_card(p) for p in groups[civic])
-        sections.append(
-            f'<section class="pol-group"><h2>{html.escape(cname)} '
-            f'<span class="civic-tag">— {len(groups[civic])} '
-            f'{"card" if len(groups[civic]) == 1 else "cards"}</span></h2>{card_grid([cards])}</section>'
-        )
+    def grouped_sections(items, htag):
+        groups = {}
+        for p in items:
+            groups.setdefault(p.get("PrereqCivic"), []).append(p)
+        out = []
+        for civic in sorted(groups, key=lambda c: rank.get(c, 99)):
+            cname = nice_type(m, civic) if civic else "Other"
+            n = len(groups[civic])
+            noun = "card" if n == 1 else "cards"
+            cards = "".join(policy_card(p) for p in groups[civic])
+            out.append(f'<section class="pol-group"><{htag}>{html.escape(cname)} '
+                       f'<span class="civic-tag">— {n} {noun}</span></{htag}>{card_grid([cards])}</section>')
+        return "".join(out)
 
+    ws = ""
+    if ns:
+        ws = (f'<h2 class="ws-section">🚶 Wandering Start policy cards</h2>'
+              f'<p class="note">These {len(ns)} cards exist only in the <strong>Wandering Start</strong> game mode.</p>'
+              f'{grouped_sections(ns, "h3")}')
     body = f"""<h1>Policy Cards</h1>
-<p class="lead">{len(pols)} prehistoric policy cards, grouped by the civic that unlocks them. Each is an early, weaker ancestor of a later base-game card and is <strong>superseded</strong> — automatically retired — once its successor becomes available.</p>
-{"".join(sections)}"""
+<p class="lead">{len(std)} standard prehistoric policy cards, grouped by the civic that unlocks them. Each is an early, weaker ancestor of a later base-game card and is <strong>superseded</strong> — automatically retired — once its successor becomes available.</p>
+{grouped_sections(std, "h2")}
+{ws}"""
     return page("Policies", "policies.html", body)
 
 
@@ -1143,13 +1180,14 @@ def build_index(m):
     counts = {
         "Technologies": len(m.rows("Technologies")),
         "Civics": len(m.rows("Civics")),
-        "Policies": len([r for r in m.rows("Policies") if "_PR_" in (r.get("PolicyType") or "")]),
+        "Policies": len([r for r in m.rows("Policies") if "_PR_" in (r.get("PolicyType") or "")
+                         and not (r.get("PolicyType") or "").startswith("POLICY_GOV_")]),
         "Pantheons": len([b for b in m.rows("Beliefs") if b.get("BeliefClassType") == "BELIEF_CLASS_PANTHEON" and "_PR_" in (b.get("BeliefType") or "")]),
         "Units": len([r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]),
         "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _positive_cost(r)]),
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "")]),
-        "Myths": len(load_myth_ids()),
+        "Wandering Start": len(load_myth_ids()),
         "Governments": len(government_records(m)),
         "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
         "Society": len([x for x in m.rows("SecretSocieties") if "_PR_" in (x.get("SecretSocietyType") or "")]),
@@ -1295,7 +1333,8 @@ a.ul-policy:hover,a.ul-government:hover{background:var(--panel);text-decoration:
 
 /* policies */
 .pol-group{margin-top:1.6em}
-.pol-group > h2{margin-bottom:.2em}
+.pol-group > h2, .pol-group > h3{margin-bottom:.2em}
+.ws-section{margin-top:1.8em;border-top:2px solid var(--accent);border-bottom:0;color:var(--accent)}
 .pol-group .civic-tag{font-size:.85rem;color:var(--muted);font-weight:400}
 .slot{display:inline-block;font-size:.72rem;font-weight:700;text-transform:uppercase;
   letter-spacing:.04em;padding:2px 8px;border-radius:12px;color:#1a140c}
@@ -1304,6 +1343,9 @@ a.ul-policy:hover,a.ul-government:hover{background:var(--panel);text-decoration:
 .slot-diplomatic{background:#5aa06e}
 .slot-wildcard{background:#9a7ac0}
 .slot-great{background:#c08a5a}
+.pedia{max-width:74ch;margin:1.2em 0}
+.pedia h2{margin-bottom:.3em}
+.pedia p{margin:.5em 0;color:#ddd2bd}
 .journey{margin:.5em 0;font-size:.9rem;color:#ddd2bd}
 .journey .eff-head{color:var(--accent2)}
 .card.myth blockquote{margin-top:.7em}

@@ -105,7 +105,8 @@ a.ul-policy:hover,a.ul-government:hover{background:var(--panel);text-decoration:
 
 /* policies */
 .pol-group{margin-top:1.6em}
-.pol-group > h2{margin-bottom:.2em}
+.pol-group > h2, .pol-group > h3{margin-bottom:.2em}
+.ws-section{margin-top:1.8em;border-top:2px solid var(--accent);border-bottom:0;color:var(--accent)}
 .pol-group .civic-tag{font-size:.85rem;color:var(--muted);font-weight:400}
 .slot{display:inline-block;font-size:.72rem;font-weight:700;text-transform:uppercase;
   letter-spacing:.04em;padding:2px 8px;border-radius:12px;color:#1a140c}
@@ -114,6 +115,9 @@ a.ul-policy:hover,a.ul-government:hover{background:var(--panel);text-decoration:
 .slot-diplomatic{background:#5aa06e}
 .slot-wildcard{background:#9a7ac0}
 .slot-great{background:#c08a5a}
+.pedia{max-width:74ch;margin:1.2em 0}
+.pedia h2{margin-bottom:.3em}
+.pedia p{margin:.5em 0;color:#ddd2bd}
 .journey{margin:.5em 0;font-size:.9rem;color:#ddd2bd}
 .journey .eff-head{color:var(--accent2)}
 .card.myth blockquote{margin-top:.7em}
