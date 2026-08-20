@@ -865,9 +865,12 @@ def build_units_page(m):
     return page("Units", "units.html", body)
 
 
-def _positive_cost(r):
+def _buildable_cost(r):
+    """A sane, player-buildable production cost. Internal reward-token buildings
+    use sentinel costs to hide themselves (Cost = -1 in older versions, 100000000
+    in newer ones), so accept only a realistic range."""
     try:
-        return float(r.get("Cost")) > 0
+        return 0 < float(r.get("Cost")) < 100000
     except (TypeError, ValueError):
         return False
 
@@ -876,7 +879,7 @@ def build_buildings_page(m):
     # Cost > 0 filters out internal reward-token buildings (Cost = -1), e.g. the
     # invisible "Processing the Great Hunt" buildings that grant scaled yields.
     blds = [r for r in m.rows("Buildings")
-            if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _positive_cost(r)]
+            if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _buildable_cost(r)]
 
     def card(r):
         bt = r["BuildingType"]
@@ -1386,7 +1389,7 @@ def build_index(m):
                          and not (r.get("PolicyType") or "").startswith("POLICY_GOV_")]),
         "Pantheons": len([b for b in m.rows("Beliefs") if b.get("BeliefClassType") == "BELIEF_CLASS_PANTHEON" and "_PR_" in (b.get("BeliefType") or "")]),
         "Units": len([r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]),
-        "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _positive_cost(r)]),
+        "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _buildable_cost(r)]),
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "") and "BAETYL" not in r["ImprovementType"]]),
         "Projects": len([p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]),
