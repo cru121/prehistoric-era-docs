@@ -144,6 +144,19 @@ _ICON_RE = re.compile(r"\[ICON_([A-Za-z0-9_]+)\]")
 _COLOR_RE = re.compile(r"\[COLOR[^\]]*\]|\[ENDCOLOR\]", re.IGNORECASE)
 _OTHER_TAG_RE = re.compile(r"\[/?[A-Za-z][^\]]*\]")
 _TOKEN_RE = re.compile(r"\{(LOC_[A-Za-z0-9_]+)\}")
+# Civ interpolates runtime params like `{1_Num}`, `{2_Number}` at game time from
+# ability/modifier context — unresolvable in a static site. Render each as a
+# letter keyed to its index (1->X, 2->Y, 3->Z...) so the text reads as an
+# intentional variable ("Spend X materials for Y turns") rather than broken markup.
+_RUNTIME_PARAM_RE = re.compile(r"\{(\d+)_[A-Za-z][A-Za-z0-9_]*\}")
+_PLACEHOLDER_LETTERS = "XYZWVUTS"
+
+
+def strip_runtime_params(text: str) -> str:
+    def sub(m):
+        i = int(m.group(1))
+        return _PLACEHOLDER_LETTERS[i - 1] if 1 <= i <= len(_PLACEHOLDER_LETTERS) else f"N{i}"
+    return _RUNTIME_PARAM_RE.sub(sub, text)
 
 
 def _prettify_key(key: str) -> str:
@@ -176,6 +189,7 @@ def render_text(loc_key_or_text: str | None, loc: dict[str, str]) -> str:
         return ""
     text = loc.get(loc_key_or_text, loc_key_or_text)
     text = resolve_tokens(text, loc)
+    text = strip_runtime_params(text)
     text = html.escape(text)
     text = text.replace("[NEWLINE]", "\n")
     text = _ICON_RE.sub(lambda m: _icon_chip(m.group(1)), text)
@@ -191,6 +205,7 @@ def render_inline(loc_key_or_text: str | None, loc: dict[str, str]) -> str:
     if not loc_key_or_text:
         return ""
     text = resolve_tokens(loc.get(loc_key_or_text, loc_key_or_text), loc)
+    text = strip_runtime_params(text)
     text = html.escape(text)
     text = _ICON_RE.sub(lambda m: _icon_chip(m.group(1)), text)
     text = _COLOR_RE.sub("", text)
