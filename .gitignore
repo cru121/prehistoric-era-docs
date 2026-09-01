@@ -6,6 +6,12 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Local tooling config (machine-specific paths, e.g. launch.json)
+/.claude/
+
+# The mod archive — local diff baselines, never redistributed
+/backup/
+
 # Never commit the mod's own source files, even if copied in by accident
 /Data/
 /Text/

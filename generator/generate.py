@@ -3,10 +3,10 @@
 Prehistoric Era — documentation site generator.
 
 Reads the mod's own source of truth (Data/*.sql, Text/*.xml, Icons/) and emits a
-self-contained static website under `web/`. No Claude, no internet, no
-dependencies beyond the Python standard library.
+self-contained static website under `docs/` (served by GitHub Pages). No Claude,
+no internet, no dependencies beyond the Python standard library.
 
-    python tools/docgen/generate.py
+    python generator/generate.py
 
 Re-run it whenever the mod changes; the site regenerates from scratch.
 """
@@ -42,12 +42,23 @@ def _latest_version_dir(base):
     return os.path.join(base, max(versions)[1]) if versions else None
 
 
+# Steam Workshop location of the live mod on a machine that owns Civ VI.
+# app-id 289070 = Sid Meier's Civilization VI; item-id 3739196160 = Prehistoric Era.
+STEAM_APPID = "289070"
+STEAM_ITEMID = "3739196160"
+STEAM_WORKSHOP_MOD = os.path.join(
+    r"C:\Program Files (x86)\Steam\steamapps\workshop\content",
+    STEAM_APPID, STEAM_ITEMID,
+)
+
+
 def _resolve_mod_dir():
     """The mod's source files (read-only input). Priority: --mod arg, then
-    PR_MOD_DIR env var, else a PrehistoricEra folder next to this repo. In every
-    case, if the chosen folder contains versioned subfolders (v20, v23, …), the
-    highest-numbered one is used — so a plain `python generate.py` always builds
-    the latest version present."""
+    PR_MOD_DIR env var, then the live Steam Workshop copy if this machine has it,
+    else the local `backup/` archive next to this script. In every case, if the
+    chosen folder contains versioned subfolders (v20, v23, …), the highest-numbered
+    one is used — so a plain `python generator/generate.py` builds from the live
+    mod when the game is installed, and falls back to the newest backup otherwise."""
     base = None
     for i, a in enumerate(sys.argv):
         if a == "--mod" and i + 1 < len(sys.argv):
@@ -56,14 +67,16 @@ def _resolve_mod_dir():
             base = a.split("=", 1)[1]
     if base is None:
         base = os.environ.get("PR_MOD_DIR")
+    if base is None and os.path.isdir(os.path.join(STEAM_WORKSHOP_MOD, "Data")):
+        base = STEAM_WORKSHOP_MOD
     if base is None:
-        base = os.path.join(SCRIPT_DIR, "..", "PrehistoricEra")
+        base = os.path.join(SCRIPT_DIR, "..", "backup")
     base = os.path.abspath(base)
     return _latest_version_dir(base) or base
 
 
 ROOT = _resolve_mod_dir()                 # mod source (input) — NOT part of this repo
-OUT = os.path.join(SCRIPT_DIR, "docs")    # generated site (committed; served by GitHub Pages)
+OUT = os.path.join(SCRIPT_DIR, "..", "docs")  # generated site at repo root (committed; served by GitHub Pages)
 NOINDEX = False                           # True = ask search engines not to index (quiet link-sharing).
                                           # False = publicly discoverable (released 2026 with the mod author's blessing).
 MOD_AUTHOR = "AKXTM"
@@ -227,7 +240,12 @@ class Model:
     def __init__(self):
         self.tables = parse.load_sql(os.path.join(ROOT, "Data"))
         self.loc = parse.load_text(os.path.join(ROOT, "Text"))
-        self.icons = parse.load_icons(os.path.join(ROOT, "Icons"))
+        # Icon jobs describe how to produce each PNG (atlas cell or loose file);
+        # the actual PNGs are written by copy_icons(). self.icons maps the lookup
+        # key to the emitted filename so icon_web() resolves before the write.
+        self._icon_jobs = parse.plan_icons(os.path.join(ROOT, "Icons"))
+        self.icons = {k: k + ".png" for k in self._icon_jobs}
+        self._used_icons: set = set()   # keys actually referenced by the pages
         # Canonical (standard-game) tree edges — NOT the nomadic/compat re-wiring.
         self.canon = parse.load_sql_files([
             os.path.join(ROOT, "Data", "Technologies.sql"),
@@ -311,10 +329,12 @@ class Model:
         return out
 
     def icon_web(self, type_key):
-        """Return the web/ relative icon path for a type, or None."""
+        """Return the web/ relative icon path for a type, or None. Records the hit
+        so copy_icons() only emits PNGs the pages actually reference."""
         cand = type_key if type_key.startswith("ICON_") else f"ICON_{type_key}"
         for k in (cand, type_key):
             if k in self.icons:
+                self._used_icons.add(k)
                 return f"assets/icons/{os.path.basename(self.icons[k])}"
         return None
 
@@ -1439,7 +1459,7 @@ def build_index(m):
 <section class="nav-cards">{"".join(cards)}</section>
 <section class="about">
   <h2>About this reference</h2>
-  <p>This site is generated directly from the mod's own data files (<code>Data/*.sql</code>, <code>Text/*.xml</code>, <code>Icons/</code>), so it always matches the installed mod version shown in the header. To refresh it after a mod update, re-run the generator: <code>python tools/docgen/generate.py</code>. See <code>tools/docgen/README.md</code> for details.</p>
+  <p>This site is generated directly from the mod's own data files (<code>Data/*.sql</code>, <code>Text/*.xml</code>, <code>Icons/</code>), so it always matches the installed mod version shown in the header. To refresh it after a mod update, re-run the generator: <code>python generator/generate.py</code>. See the project <code>README.md</code> for details.</p>
 </section>"""
     return page("Overview", "index.html", body)
 
@@ -1610,16 +1630,38 @@ table.tbl td p{margin:.2em 0}
 # --------------------------------------------------------------------------
 
 def copy_icons(m):
+    """Emit one PNG per icon job into docs/assets/icons/. Atlas jobs lift a grid
+    cell out of an uncompressed DDS sheet; loose jobs convert (or copy) a single
+    file. The folder is rebuilt from scratch so removed icons don't linger."""
     dst = os.path.join(OUT, "assets", "icons")
+    if os.path.isdir(dst):
+        shutil.rmtree(dst)
     os.makedirs(dst, exist_ok=True)
-    seen = set()
-    for _, path in m.icons.items():
-        base = os.path.basename(path)
-        if base in seen:
-            continue
-        seen.add(base)
-        shutil.copy2(path, os.path.join(dst, base))
-    return len(seen)
+    sheets: dict = {}          # dds path -> decoded (w, h, rgba) | None, cached
+    made = skipped = 0
+    jobs = {k: m._icon_jobs[k] for k in m._used_icons if k in m._icon_jobs}
+    for key, (kind, path, x, y, size) in jobs.items():
+        out = os.path.join(dst, key + ".png")
+        try:
+            if kind == "loose" and path.lower().endswith(".png"):
+                shutil.copy2(path, out)
+                made += 1
+                continue
+            if path not in sheets:
+                sheets[path] = parse.read_dds_rgba(path)
+            dec = sheets[path]
+            if not dec:                       # compressed / unsupported (e.g. PR_SNOW)
+                skipped += 1
+                continue
+            w, h, rgba = dec
+            parse.write_png(out, w, h, rgba, crop=(x, y, size) if kind == "atlas" else None)
+            made += 1
+        except Exception as exc:              # noqa: BLE001 — never fail the whole build for one icon
+            print(f"  ! icon {key}: {exc}")
+            skipped += 1
+    if skipped:
+        print(f"  ({skipped} icons skipped)")
+    return made
 
 
 def write(name, content):
@@ -1635,14 +1677,15 @@ def main():
         sys.exit(
             f"\nERROR: could not find the mod's Data/ folder under:\n  {ROOT}\n"
             "Point the generator at your local Prehistoric Era install, e.g.:\n"
-            '  python generate.py --mod "C:/path/to/PrehistoricEra"\n'
+            '  python generator/generate.py --mod "C:/path/to/PrehistoricEra"\n'
             "or set the PR_MOD_DIR environment variable."
         )
     m = Model()
     os.makedirs(os.path.join(OUT, "assets"), exist_ok=True)
-    n_icons = copy_icons(m)
     write(os.path.join("assets", "style.css"), CSS)
 
+    # Build pages first: this records which icons are actually referenced, so
+    # copy_icons() below only extracts those (not all 300+ defined in the mod).
     pages = {
         "index.html": build_index(m),
         "tech-tree.html": build_tech_page(m),
@@ -1660,6 +1703,7 @@ def main():
         "society.html": build_society_page(m),
         "civleaders.html": build_civleaders_page(m),
     }
+    n_icons = copy_icons(m)
     for name, content in pages.items():
         write(name, content)
         print(f"  wrote {name}")

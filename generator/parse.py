@@ -17,6 +17,8 @@ from __future__ import annotations
 import os
 import re
 import glob
+import struct
+import zlib
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
@@ -263,11 +265,143 @@ def load_text(text_dir: str, language: str = "en_US") -> dict[str, str]:
 # --------------------------------------------------------------------------
 
 def load_icons(icons_dir: str) -> dict[str, str]:
+    """Legacy: loose PNG files keyed by basename (for mods that ship per-icon PNGs).
+    Superseded by plan_icons(), which also un-packs the DDS texture atlases the mod
+    switched to at ~v25. Kept for reference / backward compatibility."""
     icons: dict[str, str] = {}
     for path in glob.glob(os.path.join(icons_dir, "**", "*.png"), recursive=True):
         name = os.path.splitext(os.path.basename(path))[0]
         icons[name] = path
     return icons
+
+
+# --- DDS decoding + PNG writing (uncompressed 32bpp only; stdlib only) --------
+# The mod's atlases and loose icons are uncompressed A8R8G8B8 (.dds). Compressed
+# (FourCC / DXT / DX10) files are skipped — the mod ships exactly one (PR_SNOW),
+# which the docs don't use.
+
+def _mask_shift(mask: int) -> int:
+    shift = 0
+    while mask and not (mask >> shift) & 1:
+        shift += 1
+    return shift
+
+
+def read_dds_rgba(path: str):
+    """Decode an uncompressed 32bpp DDS to (w, h, rgba_bytes). Return None for
+    compressed or non-32bpp files. Channel order is taken from the header masks,
+    so it works whether the file is BGRA (the usual Civ layout) or RGBA."""
+    with open(path, "rb") as fh:
+        blob = fh.read()
+    if blob[:4] != b"DDS " or len(blob) < 128:
+        return None
+    h, w = struct.unpack("<II", blob[12:20])
+    pf_flags = struct.unpack("<I", blob[80:84])[0]
+    if pf_flags & 0x4:                       # DDPF_FOURCC -> compressed
+        return None
+    bitcount = struct.unpack("<I", blob[88:92])[0]
+    if bitcount != 32:
+        return None
+    rmask, gmask, bmask, amask = struct.unpack("<IIII", blob[92:108])
+    px = blob[128:128 + w * h * 4]
+    if len(px) < w * h * 4:
+        return None
+    rs, gs, bs, as_ = (_mask_shift(rmask), _mask_shift(gmask),
+                       _mask_shift(bmask), _mask_shift(amask))
+    out = bytearray(w * h * 4)
+    for i in range(w * h):
+        v = int.from_bytes(px[i * 4:i * 4 + 4], "little")
+        out[i * 4]     = (v & rmask) >> rs
+        out[i * 4 + 1] = (v & gmask) >> gs
+        out[i * 4 + 2] = (v & bmask) >> bs
+        out[i * 4 + 3] = ((v & amask) >> as_) if amask else 255
+    return w, h, bytes(out)
+
+
+def write_png(path: str, w: int, h: int, rgba: bytes, crop=None) -> None:
+    """Write RGBA bytes to a PNG (zlib only). crop=(x, y, size) writes just that
+    square cell out of a larger source image (used to lift a cell from an atlas)."""
+    if crop:
+        x, y, s = crop
+        raw = b"".join(b"\x00" + rgba[((y + j) * w + x) * 4:((y + j) * w + x + s) * 4]
+                       for j in range(s))
+        ow = oh = s
+    else:
+        raw = b"".join(b"\x00" + rgba[j * w * 4:(j + 1) * w * 4] for j in range(h))
+        ow, oh = w, h
+
+    def chunk(typ, data):
+        body = typ + data
+        return struct.pack(">I", len(data)) + body + \
+            struct.pack(">I", zlib.crc32(body) & 0xffffffff)
+
+    with open(path, "wb") as fh:
+        fh.write(b"\x89PNG\r\n\x1a\n")
+        fh.write(chunk(b"IHDR", struct.pack(">IIBBBBB", ow, oh, 8, 6, 0, 0, 0)))
+        fh.write(chunk(b"IDAT", zlib.compress(raw, 9)))
+        fh.write(chunk(b"IEND", b""))
+
+
+def _pick_atlas_size(rows, want=64):
+    """Pick the smallest atlas size >= want (crisp at the site's 52px), else the
+    largest available — keeps output PNGs small without decoding the 256px sheets."""
+    rows = sorted(rows, key=lambda r: r["size"])
+    for r in rows:
+        if r["size"] >= want:
+            return r
+    return rows[-1]
+
+
+def plan_icons(icons_dir: str) -> dict:
+    """Return {icon_key: job} describing how to produce every icon PNG. A job is:
+        ("atlas", dds_path, x, y, size)   -- one grid cell of a texture atlas
+        ("loose", src_path, 0, 0, None)   -- a whole single-icon .dds/.png file
+
+    Reads the mod's Icons/*.xml (IconTextureAtlases + IconDefinitions), and any
+    loose per-icon files. Base-game atlases (whose .dds is not shipped in the mod)
+    and fogged "_FOW" variants are skipped."""
+    jobs: dict = {}
+    atlas_files: set = set()
+    atlases: dict = defaultdict(list)        # atlas name -> [{size, per_row, path}]
+    defs: list = []                          # (icon_name, atlas_name, index)
+
+    for xp in glob.glob(os.path.join(icons_dir, "**", "*.xml"), recursive=True):
+        try:
+            root = ET.parse(xp).getroot()
+        except ET.ParseError:
+            continue
+        for row in root.iter("Row"):
+            a = row.attrib
+            name = a.get("Name", "")
+            if "IconsPerRow" in a and name.startswith("ICON_ATLAS"):
+                fn = a.get("Filename", "")
+                atlas_files.add(os.path.normcase(fn))
+                path = os.path.join(icons_dir, fn)
+                if os.path.exists(path):
+                    atlases[name].append({"size": int(a["IconSize"]),
+                                          "per_row": int(a["IconsPerRow"]),
+                                          "path": path})
+            elif name.startswith("ICON_") and "Atlas" in a and "Index" in a:
+                defs.append((name, a["Atlas"], int(a["Index"])))
+
+    for name, atlas, index in defs:
+        rows = atlases.get(atlas)
+        if not rows or "_FOW" in atlas:      # base-game atlas or fogged variant
+            continue
+        row = _pick_atlas_size(rows)
+        size = row["size"]
+        col, r = index % row["per_row"], index // row["per_row"]
+        jobs[name] = ("atlas", row["path"], col * size, r * size, size)
+
+    # Loose per-icon files (not atlas sheets): converted whole.
+    loose = (glob.glob(os.path.join(icons_dir, "**", "*.dds"), recursive=True) +
+             glob.glob(os.path.join(icons_dir, "**", "*.png"), recursive=True))
+    for path in loose:
+        fn = os.path.basename(path)
+        if os.path.normcase(fn) in atlas_files:
+            continue
+        jobs.setdefault(os.path.splitext(fn)[0], ("loose", path, 0, 0, None))
+    return jobs
 
 
 if __name__ == "__main__":
