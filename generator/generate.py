@@ -1033,6 +1033,37 @@ def _dedication_effect(m, loc_key):
     return render_inline(raw, m.loc)
 
 
+# Base-game (Gathering Storm) Monumentality. Its text is NOT in the mod — the mod
+# only re-times it (UPDATE CommemorationTypes SET MinimumGameEra='ERA_ANCIENT'), so
+# it is hand-maintained here (like base_policies.json), transcribed from the base
+# game's DLC/Expansion2 Expansion1_Moments_Text.xml. Icon tokens are normalised to
+# the ICON_MAP casing. It joins the three Prehistoric Dedications at the
+# Prehistoric->Ancient window.
+MONUMENTALITY = {
+    "type": "COMMEMORATION_INFRASTRUCTURE",
+    "name": "Monumentality",
+    "golden": "+2 [ICON_Movement] Movement for all Builders. May purchase civilian units with "
+              "[ICON_Faith] Faith. Builders and Settlers are 30% cheaper to purchase with "
+              "[ICON_Faith] Faith and [ICON_Gold] Gold.",
+    "normaldark": "Gain +1 Era Score each time you construct a new specialty District.",
+}
+
+
+def _dedication_card(m, ct, name_html, golden, normal, dark, sub="Dedication", glyph="🏛️"):
+    rows = [f'<div class="mod-row"><span class="mod-k">☀️ Golden Age</span> {golden}</div>']
+    if normal and normal == dark:
+        rows.append(f'<div class="mod-row"><span class="mod-k">🌑 Normal / Dark Age</span> {normal}</div>')
+    else:
+        if normal:
+            rows.append(f'<div class="mod-row"><span class="mod-k">🌗 Normal Age</span> {normal}</div>')
+        if dark:
+            rows.append(f'<div class="mod-row"><span class="mod-k">🌑 Dark Age</span> {dark}</div>')
+    return f"""<div class="card" id="{ct}">
+  <div class="card-head">{icon_img(m, ct, glyph)}<div><h3>{name_html}</h3><div class="sub">{sub}</div></div></div>
+  <div class="desc">{"".join(rows)}</div>
+</div>"""
+
+
 def build_dedications_page(m):
     ded = m.rows("CommemorationTypes")   # the mod's new Prehistoric Dedications
     order = ["COMMEMORATION_PR_FAITH", "COMMEMORATION_PR_MILITARY", "COMMEMORATION_PR_TRADE"]
@@ -1040,26 +1071,26 @@ def build_dedications_page(m):
              if r["CommemorationType"] in order else 99)
     cards = []
     for r in ded:
-        ct = r["CommemorationType"]
-        golden = _dedication_effect(m, r.get("GoldenAgeBonusDescription"))
-        normal = _dedication_effect(m, r.get("NormalAgeBonusDescription"))
-        dark = _dedication_effect(m, r.get("DarkAgeBonusDescription"))
-        rows = [f'<div class="mod-row"><span class="mod-k">☀️ Golden Age</span> {golden}</div>']
-        if normal and normal == dark:
-            rows.append(f'<div class="mod-row"><span class="mod-k">🌑 Normal / Dark Age</span> {normal}</div>')
-        else:
-            if normal:
-                rows.append(f'<div class="mod-row"><span class="mod-k">🌗 Normal Age</span> {normal}</div>')
-            if dark:
-                rows.append(f'<div class="mod-row"><span class="mod-k">🌑 Dark Age</span> {dark}</div>')
-        cards.append(f"""<div class="card" id="{ct}">
-  <div class="card-head">{icon_img(m, ct, "🏛️")}<div><h3>{name_of(r.get('CategoryDescription'), m.loc)}</h3><div class="sub">Dedication</div></div></div>
-  <div class="desc">{"".join(rows)}</div>
-</div>""")
+        cards.append(_dedication_card(
+            m, r["CommemorationType"], name_of(r.get("CategoryDescription"), m.loc),
+            _dedication_effect(m, r.get("GoldenAgeBonusDescription")),
+            _dedication_effect(m, r.get("NormalAgeBonusDescription")),
+            _dedication_effect(m, r.get("DarkAgeBonusDescription")),
+        ))
+    # Base-game Monumentality, brought forward by the mod to this same window.
+    cards.append(_dedication_card(
+        m, MONUMENTALITY["type"],
+        f'{html.escape(MONUMENTALITY["name"])}<span class="ul-base">base</span>',
+        render_inline(MONUMENTALITY["golden"], m.loc),
+        render_inline(MONUMENTALITY["normaldark"], m.loc),
+        render_inline(MONUMENTALITY["normaldark"], m.loc),
+        sub="Dedication · brought forward",
+    ))
+
     body = f"""<h1>Dedications</h1>
 <p class="lead">A <strong>Dedication</strong> is a broad gameplay focus your leader chooses for their people each time the world advances into a new <em>World Era</em>. You always have a Dedication in effect — except at the very start, before anyone has had a chance to earn Era Score. Because every game begins in the Prehistoric era, the <strong>first Dedication is offered when you advance into the Ancient era</strong>.</p>
 <div class="note">Each Dedication gives a different reward depending on the Age you enter: a powerful <b>Golden Age</b> bonus if you earned a Golden Age, or an Era-Score quest during a <b>Normal</b> or <b>Dark Age</b> that helps you climb back toward the next Golden Age.</div>
-<p>The mod adds {len(ded)} Prehistoric-themed Dedications, offered at the <strong>Prehistoric → Ancient</strong> transition. The base-game <strong>Monumentality</strong> Dedication is also brought forward to appear in this same window (it fits the dawn of settled civilization — Builders, Settlers and districts); the remaining base-game Dedications resume as normal from the Ancient → Classical transition onward.</p>
+<p>Four Dedications are offered at the <strong>Prehistoric → Ancient</strong> transition: three new Prehistoric-themed ones, plus base-game <strong>Monumentality</strong> — brought forward one era (it fits the dawn of settled civilization: Builders, Settlers and districts). The remaining base-game Dedications are unchanged and resume as normal from the Ancient → Classical transition onward.</p>
 {card_grid(cards)}"""
     return page("Dedications", "dedications.html", body)
 
