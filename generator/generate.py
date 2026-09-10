@@ -243,7 +243,12 @@ class Model:
         # Icon jobs describe how to produce each PNG (atlas cell or loose file);
         # the actual PNGs are written by copy_icons(). self.icons maps the lookup
         # key to the emitted filename so icon_web() resolves before the write.
-        self._icon_jobs = parse.plan_icons(os.path.join(ROOT, "Icons"))
+        # The mod defines some icons in Icons/*.xml and others in SQL
+        # (IconOverrides.sql -> IconDefinitions); pass the SQL ones through too.
+        self._icon_jobs = parse.plan_icons(
+            os.path.join(ROOT, "Icons"),
+            extra_defs=parse.sql_icon_defs(os.path.join(ROOT, "Data")),
+        )
         self.icons = {k: k + ".png" for k in self._icon_jobs}
         self._used_icons: set = set()   # keys actually referenced by the pages
         # Canonical (standard-game) tree edges — NOT the nomadic/compat re-wiring.
@@ -389,7 +394,9 @@ def place_rows(nodes, col, rowpref):
     and nudging to the nearest free row on collision (mirrors the engine)."""
     used = set()
     placed = {}
-    for n in sorted(nodes, key=lambda x: (col[x], rowpref.get(x, 0))):
+    # `nodes` is a set; the trailing `x` makes ties (same column + row preference)
+    # break on the node id so placement is deterministic run to run.
+    for n in sorted(nodes, key=lambda x: (col[x], rowpref.get(x, 0), x)):
         c, pref = col[n], rowpref.get(n, 0)
         r, d = pref, 0
         while (c, r) in used:
@@ -441,9 +448,9 @@ def render_tree_svg(nodes, edges, placed, labels, icons, gate_edges, gate_labels
             svg.append(f'<line class="gate" x1="{sx}" y1="{sy}" x2="{sx + 22}" y2="{ty}" />')
             svg.append(f'<text class="gate-label" x="{sx + 26}" y="{ty + 4}">→ {html.escape(gate_labels.get(dst, dst))}</text>')
 
-    for n in nodes:
-        if n not in placed:
-            continue
+    # Deterministic draw order (top-left to bottom-right, id as tiebreak) so the
+    # generated SVG is stable across runs.
+    for n in sorted((n for n in nodes if n in placed), key=lambda n: (placed[n][0], placed[n][1], n)):
         x, y = xy(n)
         icon = icons.get(n)
         svg.append(f'<g class="node" transform="translate({x},{y})">')
@@ -472,6 +479,7 @@ NAV = [
     ("civics.html", "Civics"),
     ("policies.html", "Policies"),
     ("pantheons.html", "Pantheons"),
+    ("dedications.html", "Dedications"),
     ("units.html", "Units"),
     ("buildings.html", "Buildings"),
     ("wonders.html", "Wonders"),
@@ -488,7 +496,7 @@ NAV = [
 NAV_GROUPS = [
     ("Trees", ["tech-tree.html", "civics.html"]),
     ("Content", ["units.html", "buildings.html", "wonders.html", "improvements.html", "projects.html"]),
-    ("Systems", ["policies.html", "pantheons.html", "governments.html", "governor.html", "society.html", "civleaders.html"]),
+    ("Systems", ["policies.html", "pantheons.html", "dedications.html", "governments.html", "governor.html", "society.html", "civleaders.html"]),
 ]
 NAV_STANDALONE = ["myths.html"]  # Wandering Start — a top-level link
 
@@ -1014,6 +1022,46 @@ def build_pantheons_page(m):
 <p class="lead">{len(pans)} new pantheon beliefs themed for the stone age. As in the base game, you found a Pantheon with your first accumulated ✨ Faith and choose one belief — these join the base-game pantheons in the pool, giving early, terrain- and ritual-focused options that fit the Prehistoric era.</p>
 {card_grid(cards)}"""
     return page("Pantheons", "pantheons.html", body)
+
+
+def _dedication_effect(m, loc_key):
+    """The effect line of a Dedication bonus, dropping the redundant
+    "<Name> Golden Age:" header that precedes the first [NEWLINE]."""
+    raw = m.loc.get(loc_key, loc_key or "")
+    if "[NEWLINE]" in raw:
+        raw = raw.split("[NEWLINE]", 1)[1]
+    return render_inline(raw, m.loc)
+
+
+def build_dedications_page(m):
+    ded = m.rows("CommemorationTypes")   # the mod's new Prehistoric Dedications
+    order = ["COMMEMORATION_PR_FAITH", "COMMEMORATION_PR_MILITARY", "COMMEMORATION_PR_TRADE"]
+    ded.sort(key=lambda r: order.index(r["CommemorationType"])
+             if r["CommemorationType"] in order else 99)
+    cards = []
+    for r in ded:
+        ct = r["CommemorationType"]
+        golden = _dedication_effect(m, r.get("GoldenAgeBonusDescription"))
+        normal = _dedication_effect(m, r.get("NormalAgeBonusDescription"))
+        dark = _dedication_effect(m, r.get("DarkAgeBonusDescription"))
+        rows = [f'<div class="mod-row"><span class="mod-k">☀️ Golden Age</span> {golden}</div>']
+        if normal and normal == dark:
+            rows.append(f'<div class="mod-row"><span class="mod-k">🌑 Normal / Dark Age</span> {normal}</div>')
+        else:
+            if normal:
+                rows.append(f'<div class="mod-row"><span class="mod-k">🌗 Normal Age</span> {normal}</div>')
+            if dark:
+                rows.append(f'<div class="mod-row"><span class="mod-k">🌑 Dark Age</span> {dark}</div>')
+        cards.append(f"""<div class="card" id="{ct}">
+  <div class="card-head">{icon_img(m, ct, "🏛️")}<div><h3>{name_of(r.get('CategoryDescription'), m.loc)}</h3><div class="sub">Dedication</div></div></div>
+  <div class="desc">{"".join(rows)}</div>
+</div>""")
+    body = f"""<h1>Dedications</h1>
+<p class="lead">A <strong>Dedication</strong> is a broad gameplay focus your leader chooses for their people each time the world advances into a new <em>World Era</em>. You always have a Dedication in effect — except at the very start, before anyone has had a chance to earn Era Score. Because every game begins in the Prehistoric era, the <strong>first Dedication is offered when you advance into the Ancient era</strong>.</p>
+<div class="note">Each Dedication gives a different reward depending on the Age you enter: a powerful <b>Golden Age</b> bonus if you earned a Golden Age, or an Era-Score quest during a <b>Normal</b> or <b>Dark Age</b> that helps you climb back toward the next Golden Age.</div>
+<p>The mod adds {len(ded)} Prehistoric-themed Dedications, offered at the <strong>Prehistoric → Ancient</strong> transition. The base-game <strong>Monumentality</strong> Dedication is also brought forward to appear in this same window (it fits the dawn of settled civilization — Builders, Settlers and districts); the remaining base-game Dedications resume as normal from the Ancient → Classical transition onward.</p>
+{card_grid(cards)}"""
+    return page("Dedications", "dedications.html", body)
 
 
 def load_myth_ids():
@@ -1692,6 +1740,7 @@ def main():
         "civics.html": build_civics_page(m),
         "policies.html": build_policies_page(m),
         "pantheons.html": build_pantheons_page(m),
+        "dedications.html": build_dedications_page(m),
         "units.html": build_units_page(m),
         "buildings.html": build_buildings_page(m),
         "wonders.html": build_wonders_page(m),

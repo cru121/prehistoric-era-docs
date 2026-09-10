@@ -151,10 +151,24 @@ def _split_tuples(values_blob: str) -> list[str]:
     return tuples
 
 
+# Only plain `INSERT INTO` feeds the row tables. `INSERT OR REPLACE/IGNORE` is
+# deliberately NOT parsed here: it means replace/ignore-by-primary-key, but this
+# tokenizer only appends rows, so folding those in would duplicate any row the mod
+# overrides (e.g. Government_SlotCounts). The one place we do want the OR REPLACE
+# rows — the SQL icon atlas definitions — is read separately by sql_icon_defs(),
+# where a name-keyed dict gives the correct last-wins behaviour.
 _INSERT_RE = re.compile(
     r"INSERT\s+INTO\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*?)\)\s*VALUES\s*(.*?);",
     re.IGNORECASE | re.DOTALL,
 )
+
+# Column names may be quoted/bracketed when they collide with SQL keywords
+# (e.g. `'Index'`); normalise them so row dicts key on the bare name.
+def _clean_col(col: str) -> str:
+    col = col.strip()
+    if len(col) >= 2 and col[0] in "\"'`[" and col[-1] in "\"'`]":
+        col = col[1:-1].strip()
+    return col
 
 
 def parse_sql_file(path: str, tables: dict[str, list[dict]]):
@@ -163,7 +177,7 @@ def parse_sql_file(path: str, tables: dict[str, list[dict]]):
     clean = strip_sql_comments(raw)
     for m in _INSERT_RE.finditer(clean):
         table = m.group(1)
-        cols = [c.strip() for c in _split_top_level(m.group(2))]
+        cols = [_clean_col(c) for c in _split_top_level(m.group(2))]
         for tup in _split_tuples(m.group(3)):
             vals = [_parse_value(v) for v in _split_top_level(tup)]
             if len(vals) != len(cols):
@@ -180,6 +194,36 @@ def load_sql(data_dir: str) -> dict[str, list[dict]]:
         except Exception as exc:  # noqa: BLE001 - keep going, report at end
             print(f"  ! failed to parse {os.path.basename(path)}: {exc}")
     return tables
+
+
+# Icon atlas definitions the mod adds via SQL (IconOverrides.sql), which use
+# `INSERT OR REPLACE INTO IconDefinitions (Name, Atlas, 'Index')`. Read here rather
+# than through the general row parser precisely because they use OR REPLACE — see
+# the note on _INSERT_RE. Returns [(name, atlas, index)] for plan_icons(extra_defs).
+_ICONDEF_RE = re.compile(
+    r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+IconDefinitions\s*\(([^)]*?)\)\s*VALUES\s*(.*?);",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def sql_icon_defs(data_dir: str) -> list[tuple]:
+    out: list[tuple] = []
+    for path in sorted(glob.glob(os.path.join(data_dir, "*.sql"))):
+        try:
+            clean = strip_sql_comments(open(path, encoding="utf-8-sig").read())
+        except OSError:
+            continue
+        for m in _ICONDEF_RE.finditer(clean):
+            cols = [_clean_col(c) for c in _split_top_level(m.group(1))]
+            for tup in _split_tuples(m.group(2)):
+                vals = [_parse_value(v) for v in _split_top_level(tup)]
+                if len(vals) != len(cols):
+                    continue
+                row = dict(zip(cols, vals))
+                name, atlas, idx = row.get("Name"), row.get("Atlas"), row.get("Index")
+                if name and atlas and str(idx).strip().lstrip("-").isdigit():
+                    out.append((name, atlas, int(idx)))
+    return out
 
 
 _UPDATE_RE = re.compile(
@@ -352,14 +396,16 @@ def _pick_atlas_size(rows, want=64):
     return rows[-1]
 
 
-def plan_icons(icons_dir: str) -> dict:
+def plan_icons(icons_dir: str, extra_defs=None) -> dict:
     """Return {icon_key: job} describing how to produce every icon PNG. A job is:
         ("atlas", dds_path, x, y, size)   -- one grid cell of a texture atlas
         ("loose", src_path, 0, 0, None)   -- a whole single-icon .dds/.png file
 
     Reads the mod's Icons/*.xml (IconTextureAtlases + IconDefinitions), and any
-    loose per-icon files. Base-game atlases (whose .dds is not shipped in the mod)
-    and fogged "_FOW" variants are skipped."""
+    loose per-icon files. `extra_defs` is an optional iterable of (name, atlas,
+    index) triples — the mod also defines icons via SQL (IconOverrides.sql), which
+    the caller passes in here. Base-game atlases (whose .dds is not shipped in the
+    mod) and fogged "_FOW" variants are skipped."""
     jobs: dict = {}
     atlas_files: set = set()
     atlases: dict = defaultdict(list)        # atlas name -> [{size, per_row, path}]
@@ -383,6 +429,11 @@ def plan_icons(icons_dir: str) -> dict:
                                           "path": path})
             elif name.startswith("ICON_") and "Atlas" in a and "Index" in a:
                 defs.append((name, a["Atlas"], int(a["Index"])))
+
+    # SQL-defined atlas icons (IconOverrides.sql) applied after the XML, matching
+    # the game's INSERT OR REPLACE precedence.
+    for name, atlas, index in (extra_defs or []):
+        defs.append((name, atlas, int(index)))
 
     for name, atlas, index in defs:
         rows = atlases.get(atlas)
