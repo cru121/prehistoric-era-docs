@@ -1540,6 +1540,7 @@ def build_index(m):
         "Policies": len([r for r in m.rows("Policies") if "_PR_" in (r.get("PolicyType") or "")
                          and not (r.get("PolicyType") or "").startswith("POLICY_GOV_")]),
         "Pantheons": len([b for b in m.rows("Beliefs") if b.get("BeliefClassType") == "BELIEF_CLASS_PANTHEON" and "_PR_" in (b.get("BeliefType") or "")]),
+        "Dedications": len(m.rows("CommemorationTypes")),   # the mod's new Prehistoric Dedications (Monumentality is base, brought forward)
         "Units": len([r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]),
         "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _buildable_cost(r)]),
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
