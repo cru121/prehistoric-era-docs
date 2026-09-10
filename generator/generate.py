@@ -1560,7 +1560,7 @@ def build_index(m):
 
     body = f"""<section class="hero">
   <h1>Prehistoric Era</h1>
-  <p class="tagline">A new starting era for Civilization VI — begin in the Stone Age, before the Ancient era.</p>
+  <p class="intro"><strong>Prehistoric Era</strong> is a mod for <em>Sid Meier's Civilization VI</em>, created by <a href="{MOD_URL}" target="_blank" rel="noopener">{html.escape(MOD_AUTHOR)}</a>. It adds a whole new Stone Age — a starting era with its own technologies, civics, units, buildings, wonders and improvements — that plays out <strong>before</strong> the Ancient era.</p>
   <div class="era-desc">{era_desc}</div>
 </section>
 <section class="credit" role="note">
@@ -1636,6 +1636,8 @@ code{background:var(--panel);padding:.1em .4em;border-radius:4px;font-size:.9em}
 .hero{text-align:center;padding:40px 10px 10px}
 .hero h1{font-size:2.8rem;margin:0}
 .tagline{color:var(--accent2);font-size:1.15rem;margin:.3em 0 1.4em}
+.intro{color:var(--ink);font-size:1.2rem;line-height:1.6;max-width:66ch;margin:.4em auto 1.4em}
+.intro strong{color:var(--accent2)}
 .era-desc{max-width:66ch;margin:0 auto;color:var(--muted);text-align:left;
   background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
   padding:14px 20px;border-radius:8px}
