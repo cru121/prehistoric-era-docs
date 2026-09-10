@@ -1201,10 +1201,27 @@ def build_policies_page(m):
     civic_order = sorted(cnodes, key=lambda c: (ccol.get(c, 99), crow.get(c, 0)))
     rank = {c: i for i, c in enumerate(civic_order)}
 
+    # Dark Age cards: available only during a Dark Age (RequiresDarkAge=1 in
+    # Policies_XP1), not unlocked by a civic. These were the old "Other" group.
+    dark_age = {r["PolicyType"] for r in m.rows("Policies_XP1")
+                if str(r.get("RequiresDarkAge") or "0").strip() in ("1", "true", "True")}
+
+    def unlocked_by(p):
+        """The 'Unlocked by' value for a card: its civic (linked), or the Age it
+        comes from for cards not gated on a civic."""
+        pt = p["PolicyType"]
+        if pt in dark_age:
+            return "🌑 Dark Age"
+        civ = p.get("PrereqCivic")
+        if civ:
+            return ref_link(m, nice_type(m, civ), civ)
+        return "—"
+
     def policy_card(p):
         pt = p["PolicyType"]
         slot = SLOT_INFO.get(p.get("GovernmentSlotType"), ("Policy", "slot-wildcard", "•"))
         badge = f'<span class="slot {slot[1]}">{slot[2]} {slot[0]}</span>'
+        by_row = f'<div class="mod-row"><span class="mod-k">Unlocked by</span> {unlocked_by(p)}</div>'
         succ = obsolete.get(pt)
         if succ:
             civic, era = successor_civic(succ)
@@ -1217,32 +1234,53 @@ def build_policies_page(m):
             exp = '<div class="expires perm">♾️ No successor — remains available.</div>'
         return f"""<div class="card" id="{pt}">
   <div class="card-head" style="justify-content:space-between"><h3>{name_of(p.get('Name'), m.loc)}</h3>{badge}</div>
-  <div class="desc">{render_text(p.get('Description'), m.loc)}</div>
+  <div class="desc">{render_text(p.get('Description'), m.loc)}{by_row}</div>
   {exp}
 </div>"""
 
-    def grouped_sections(items, htag):
-        groups = {}
-        for p in items:
-            groups.setdefault(p.get("PrereqCivic"), []).append(p)
-        out = []
-        for civic in sorted(groups, key=lambda c: rank.get(c, 99)):
-            cname = nice_type(m, civic) if civic else "Other"
-            n = len(groups[civic])
-            noun = "card" if n == 1 else "cards"
-            cards = "".join(policy_card(p) for p in groups[civic])
-            out.append(f'<section class="pol-group"><{htag}>{html.escape(cname)} '
-                       f'<span class="civic-tag">— {n} {noun}</span></{htag}>{card_grid([cards])}</section>')
-        return "".join(out)
+    def cards_grid(items):
+        """A flat grid of cards, ordered by the tree rank of the unlocking civic
+        then by name (the 'Unlocked by' line now carries the civic, so no
+        per-civic sub-headers are needed)."""
+        items = sorted(items, key=lambda p: (rank.get(p.get("PrereqCivic"), 99),
+                                             name_of(p.get("Name"), m.loc)))
+        return card_grid(["".join(policy_card(p) for p in items)])
+
+    def slot_section(label, cls, glyph, items):
+        n = len(items)
+        noun = "card" if n == 1 else "cards"
+        return (f'<section class="pol-group"><h2><span class="slot {cls}">{glyph} {label}</span> '
+                f'<span class="civic-tag">— {n} {noun}</span></h2>{cards_grid(items)}</section>')
+
+    # Standard (civic-unlocked) cards, split into the two main slot groups.
+    normal = [p for p in std if p["PolicyType"] not in dark_age]
+    military = [p for p in normal if p.get("GovernmentSlotType") == "SLOT_MILITARY"]
+    economic = [p for p in normal if p.get("GovernmentSlotType") == "SLOT_ECONOMIC"]
+    other = [p for p in normal if p.get("GovernmentSlotType") not in ("SLOT_MILITARY", "SLOT_ECONOMIC")]
+    dark = [p for p in std if p["PolicyType"] in dark_age]
+
+    main = slot_section("Military", "slot-military", "⚔️", military)
+    main += slot_section("Economic", "slot-economic", "💰", economic)
+    if other:  # safety net if a future card uses another slot
+        main += slot_section("Other slots", "slot-wildcard", "⭐", other)
+
+    dark_sec = ""
+    if dark:
+        dark_sec = (f'<h2 class="ws-section">🌑 Dark Age policy cards</h2>'
+                    f'<p class="note">These {len(dark)} cards are not unlocked by a civic — they '
+                    f'become available only while you are in a <strong>Dark Age</strong>.</p>'
+                    f'{cards_grid(dark)}')
 
     ws = ""
     if ns:
         ws = (f'<h2 class="ws-section">🚶 Wandering Start policy cards</h2>'
               f'<p class="note">These {len(ns)} cards exist only in the <strong>Wandering Start</strong> game mode.</p>'
-              f'{grouped_sections(ns, "h3")}')
+              f'{cards_grid(ns)}')
+
     body = f"""<h1>Policy Cards</h1>
-<p class="lead">{len(std)} standard prehistoric policy cards, grouped by the civic that unlocks them. Each is an early, weaker ancestor of a later base-game card and is <strong>superseded</strong> — automatically retired — once its successor becomes available.</p>
-{grouped_sections(std, "h2")}
+<p class="lead">{len(normal)} standard prehistoric policy cards, split by slot into <strong>⚔️ Military</strong> and <strong>💰 Economic</strong>. Each card shows the civic that unlocks it, and is an early, weaker ancestor of a later base-game card — <strong>superseded</strong> (automatically retired) once its successor becomes available.</p>
+{main}
+{dark_sec}
 {ws}"""
     return page("Policies", "policies.html", body)
 
