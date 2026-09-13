@@ -1581,7 +1581,10 @@ def build_index(m):
         "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _buildable_cost(r)]),
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "") and "BAETYL" not in r["ImprovementType"]]),
-        "Projects": len([p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]),
+        # +1 for the Origin Myth project, which build_projects_page adds by hand
+        # (INSERT...SELECT, so not in the parsed rows). See that function.
+        "Projects": len([p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")])
+                    + (0 if any(p.get("ProjectType") == "PROJECT_PR_ORIGIN_MYTH" for p in m.rows("Projects")) else 1),
         "Origin Myths": len(load_myth_ids()),
         "Governments": len(government_records(m)),
         "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
