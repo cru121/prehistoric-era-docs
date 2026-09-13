@@ -1518,14 +1518,28 @@ def build_civleaders_page(m):
 
 def build_projects_page(m):
     projects = [p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]
+    # The Origin Myth project is added via INSERT...SELECT (gated on the standalone
+    # option / a non-nomadic game), so the VALUES-only parser never sees it. Add it
+    # by hand from its known definition (Data/OriginMythProject.sql) so the
+    # standalone "Weave the Origin Myth" project is documented here too.
+    if not any(p.get("ProjectType") == "PROJECT_PR_ORIGIN_MYTH" for p in projects):
+        projects.append({
+            "ProjectType": "PROJECT_PR_ORIGIN_MYTH",
+            "Name": "LOC_PROJECT_PR_ORIGIN_MYTH_NAME",
+            "Description": "LOC_PROJECT_PR_ORIGIN_MYTH_DESCRIPTION",
+            "Cost": 24,
+            "PrereqCivic": "CIVIC_PR_ORAL_TRADITION",
+        })
     PEDIA = {
         "PROJECT_PR_BIG_GAME_HUNT": ("PR_BIG_GAME", "PrehistoricBigGame"),
         "PROJECT_PR_STOCKPILE": ("PR_STOCKPILE", "PrehistoricStockpile"),
     }
     NOTE = {
+        "PROJECT_PR_ORIGIN_MYTH": 'Choose an <a href="origin-myths.html">Origin Myth</a> · once per player',
         "PROJECT_PR_STAR_SEED": "Atomic era · requires the Fire &amp; Stone secret society (the Star-Forge title).",
     }
-    order = {"PROJECT_PR_BIG_GAME_HUNT": 0, "PROJECT_PR_STOCKPILE": 1, "PROJECT_PR_STAR_SEED": 2}
+    order = {"PROJECT_PR_BIG_GAME_HUNT": 0, "PROJECT_PR_STOCKPILE": 1,
+             "PROJECT_PR_ORIGIN_MYTH": 2, "PROJECT_PR_STAR_SEED": 3}
     projects.sort(key=lambda p: order.get(p.get("ProjectType"), 9))
 
     sections = []
@@ -1550,7 +1564,7 @@ def build_projects_page(m):
 </section>""")
 
     body = f"""<h1>Projects</h1>
-<p class="lead">City projects added by the mod. Two power the new <strong>Big Game Hunt</strong> and <strong>Stockpile</strong> systems; the third, <strong>Star-Quickening</strong>, is a late-game <a href="society.html">Fire &amp; Stone</a> secret-society project. Each entry below includes the mod's in-game Civilopedia explanation where one exists.</p>
+<p class="lead">City projects added by the mod. Two power the new <strong>Big Game Hunt</strong> and <strong>Stockpile</strong> systems; <strong>Weave the Origin Myth</strong> lets a standard game choose an <a href="origin-myths.html">Origin Myth</a>; and <strong>Star-Quickening</strong> is a late-game <a href="society.html">Fire &amp; Stone</a> secret-society project. Each entry below includes the mod's in-game Civilopedia explanation where one exists.</p>
 {"".join(sections)}"""
     return page("Projects", "projects.html", body)
 
@@ -1568,7 +1582,6 @@ def build_index(m):
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "") and "BAETYL" not in r["ImprovementType"]]),
         "Projects": len([p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]),
-        "Wandering Start": "",   # a narrative mode overview — no natural count
         "Origin Myths": len(load_myth_ids()),
         "Governments": len(government_records(m)),
         "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
@@ -1576,8 +1589,13 @@ def build_index(m):
         "Civs & Leaders": sum(len(v) for v in civ_regates(m).values()) + len(LEADER_GATES),
     }
     era_desc = render_text("LOC_ERA_PREHISTORIC_DESCRIPTION", m.loc)
+    # Wandering Start stays a nav link but is a narrative mode overview, not a
+    # counted content bucket, so it gets no dashboard tile.
+    skip_tiles = {"myths.html"}
     cards = []
     for href, label in NAV[1:]:
+        if href in skip_tiles:
+            continue
         n = counts.get(label, "")
         cards.append(f'<a class="nav-card" href="{href}"><span class="nc-count">{n}</span><span class="nc-label">{label}</span></a>')
 
