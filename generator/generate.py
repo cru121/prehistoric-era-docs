@@ -486,6 +486,7 @@ NAV = [
     ("improvements.html", "Improvements"),
     ("projects.html", "Projects"),
     ("myths.html", "Wandering Start"),
+    ("origin-myths.html", "Origin Myths"),
     ("governments.html", "Governments"),
     ("governor.html", "Governor"),
     ("society.html", "Society"),
@@ -496,7 +497,7 @@ NAV = [
 NAV_GROUPS = [
     ("Trees", ["tech-tree.html", "civics.html"]),
     ("Content", ["units.html", "buildings.html", "wonders.html", "improvements.html", "projects.html"]),
-    ("Systems", ["policies.html", "pantheons.html", "dedications.html", "governments.html", "governor.html", "society.html", "civleaders.html"]),
+    ("Systems", ["policies.html", "pantheons.html", "dedications.html", "origin-myths.html", "governments.html", "governor.html", "society.html", "civleaders.html"]),
 ]
 NAV_STANDALONE = ["myths.html"]  # Wandering Start — a top-level link
 
@@ -1130,10 +1131,10 @@ def pedia_chapters(m, section, page_id, layout_id, skip=(), htag="h2"):
     return "".join(out)
 
 
-def build_myths_page(m):
-    ids = load_myth_ids()
+def _myth_cards(m):
+    """The 25 Origin-Myth cards, shared by the Origin Myths page."""
     cards = []
-    for mid in ids:
+    for mid in load_myth_ids():
         name = m.loc.get(f"LOC_MYTH_PR_{mid}_NAME", mid.title())
         eff_key = f"LOC_MYTH_PR_{mid}_EFFECT"
         flavor_key = f"LOC_MYTH_PR_{mid}_FLAVOR"
@@ -1149,17 +1150,38 @@ def build_myths_page(m):
   {journey}
   {flavor}
 </div>""")
+    return cards
 
-    # In-game Civilopedia overview of the whole mode (skip its MYTHS chapter — the
-    # myth cards below cover that in full).
+
+def build_myths_page(m):
+    # In-game Civilopedia overview of the whole mode. The MYTHS chapter is skipped:
+    # Origin Myths are their own system now (a standalone game option too), so they
+    # live on origin-myths.html and this page just points there.
     overview = pedia_chapters(m, "CONCEPTS", "NOMADIC_START", "NomadicStart", skip=("MYTHS",))
     body = f"""<h1>Wandering Start</h1>
-<p class="lead">An optional game mode: you begin not with a Settler but a roaming band, and live off the land until you found your first city — where you choose an <strong>Origin Myth</strong>. The overview below is drawn from the mod's in-game Civilopedia.</p>
+<p class="lead">An optional game mode: you begin not with a Settler but a roaming band, and live off the land until you found your first city. The overview below is drawn from the mod's in-game Civilopedia.</p>
 {overview}
-<h2>The {len(ids)} Origin Myths</h2>
-<p class="lead">When your band founds its first city, you choose one of these — each grants a permanent bonus, and which are offered is shaped by the journey your band walked (the "journey" line is what earns each one).</p>
-<div class="grid" style="margin-top:14px">{"".join(cards)}</div>"""
+<h2>Origin Myths</h2>
+<p class="note">When your band founds its first city, you choose a permanent <strong>Origin Myth</strong> shaped by the journey it walked. This is no longer exclusive to Wandering Start — see the <a href="origin-myths.html">Origin Myths</a> page for all {len(load_myth_ids())} myths and how they are chosen in each game mode.</p>"""
     return page("Wandering Start", "myths.html", body)
+
+
+def build_origin_myths_page(m):
+    cards = _myth_cards(m)
+    n = len(cards)
+    # Standard-game project route (defined via INSERT...SELECT, so not in the
+    # parsed Projects rows — pull its name/description straight from the text).
+    proj_name = m.loc.get("LOC_PROJECT_PR_ORIGIN_MYTH_NAME", "Weave the Origin Myth")
+    proj_desc = render_text("LOC_PROJECT_PR_ORIGIN_MYTH_DESCRIPTION", m.loc)
+    body = f"""<h1>Origin Myths</h1>
+<p class="lead">An <strong>Origin Myth</strong> is a founding story your people choose once — a permanent trait that lasts the rest of the game. There are {n} in all, and each can be held by only one civilization: whoever claims it first takes it. When it is your turn to choose, four are offered, drawn from your civilization's preferred myth and from the journey your people actually walked (the &ldquo;journey&rdquo; line on each card below).</p>
+<h2>How you come to choose one</h2>
+<p class="note">🏙️ <strong>Standard game.</strong> Turn on the <strong>Origin Myths</strong> option in Advanced Setup (available whenever Wandering Start is off). Once you research <a href="civics.html#CIVIC_PR_ORAL_TRADITION">Oral Tradition</a>, a city can complete the <strong>{html.escape(proj_name)}</strong> project to choose your myth. {proj_desc}</p>
+<p class="note">🚶 <strong>Wandering Start.</strong> Built into the <a href="myths.html">Wandering Start</a> game mode, with no option to set: the moment your roaming band founds its first city, you choose your myth from what the band did while wandering.</p>
+<h2>The {n} Origin Myths</h2>
+<p class="lead">Each grants a permanent bonus. Which are offered is shaped by your civilization and by the journey behind you — the &ldquo;journey&rdquo; line is what earns each one.</p>
+<div class="grid" style="margin-top:14px">{"".join(cards)}</div>"""
+    return page("Origin Myths", "origin-myths.html", body)
 
 
 SLOT_INFO = {
@@ -1546,7 +1568,8 @@ def build_index(m):
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "") and "BAETYL" not in r["ImprovementType"]]),
         "Projects": len([p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]),
-        "Wandering Start": len(load_myth_ids()),
+        "Wandering Start": "",   # a narrative mode overview — no natural count
+        "Origin Myths": len(load_myth_ids()),
         "Governments": len(government_records(m)),
         "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
         "Society": len([x for x in m.rows("SecretSocieties") if "_PR_" in (x.get("SecretSocietyType") or "")]),
@@ -1819,6 +1842,7 @@ def main():
         "improvements.html": build_improvements_page(m),
         "projects.html": build_projects_page(m),
         "myths.html": build_myths_page(m),
+        "origin-myths.html": build_origin_myths_page(m),
         "governments.html": build_governments_page(m),
         "governor.html": build_governor_page(m),
         "society.html": build_society_page(m),
