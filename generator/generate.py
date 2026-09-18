@@ -1534,12 +1534,20 @@ def build_projects_page(m):
         "PROJECT_PR_BIG_GAME_HUNT": ("PR_BIG_GAME", "PrehistoricBigGame"),
         "PROJECT_PR_STOCKPILE": ("PR_STOCKPILE", "PrehistoricStockpile"),
     }
+    # The Daylight/Firelight Circles ship in SurplusProjects.sql, which the mod only
+    # loads when the "Surplus Production Projects" game-setup option is on (modinfo
+    # criteria SurplusProjects_Active). The VALUES-based parser sees them regardless,
+    # so flag the opt-in gating that the raw rows don't convey.
+    OPT_IN_SURPLUS = 'Optional — enable &ldquo;Surplus Production Projects&rdquo; in game setup'
     NOTE = {
         "PROJECT_PR_ORIGIN_MYTH": 'Choose an <a href="origin-myths.html">Origin Myth</a> · once per player',
         "PROJECT_PR_STAR_SEED": "Atomic era · requires the Fire &amp; Stone secret society (the Star-Forge title).",
+        "PROJECT_PR_DAYLIGHT_CIRCLE": OPT_IN_SURPLUS,
+        "PROJECT_PR_FIRELIGHT_CIRCLE": OPT_IN_SURPLUS,
     }
     order = {"PROJECT_PR_BIG_GAME_HUNT": 0, "PROJECT_PR_STOCKPILE": 1,
-             "PROJECT_PR_ORIGIN_MYTH": 2, "PROJECT_PR_STAR_SEED": 3}
+             "PROJECT_PR_ORIGIN_MYTH": 2, "PROJECT_PR_STAR_SEED": 3,
+             "PROJECT_PR_DAYLIGHT_CIRCLE": 4, "PROJECT_PR_FIRELIGHT_CIRCLE": 5}
     projects.sort(key=lambda p: order.get(p.get("ProjectType"), 9))
 
     sections = []
@@ -1564,7 +1572,7 @@ def build_projects_page(m):
 </section>""")
 
     body = f"""<h1>Projects</h1>
-<p class="lead">City projects added by the mod. Two power the new <strong>Big Game Hunt</strong> and <strong>Stockpile</strong> systems; <strong>Weave the Origin Myth</strong> lets a standard game choose an <a href="origin-myths.html">Origin Myth</a>; and <strong>Star-Quickening</strong> is a late-game <a href="society.html">Fire &amp; Stone</a> secret-society project. Each entry below includes the mod's in-game Civilopedia explanation where one exists.</p>
+<p class="lead">City projects added by the mod. Two power the new <strong>Big Game Hunt</strong> and <strong>Stockpile</strong> systems; <strong>Weave the Origin Myth</strong> lets a standard game choose an <a href="origin-myths.html">Origin Myth</a>; <strong>Star-Quickening</strong> is a late-game <a href="society.html">Fire &amp; Stone</a> secret-society project; and the opt-in <strong>Daylight</strong> and <strong>Firelight Circles</strong> turn leftover early-era production into <span class="chip" title="Science">🧪</span> Science and <span class="chip" title="Culture">🎭</span> Culture. Each entry below includes the mod's in-game Civilopedia explanation where one exists.</p>
 {"".join(sections)}"""
     return page("Projects", "projects.html", body)
 
