@@ -1517,63 +1517,88 @@ def build_civleaders_page(m):
 
 
 def build_projects_page(m):
-    projects = [p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")]
+    projects = {p["ProjectType"]: p for p in m.rows("Projects")
+                if "_PR_" in (p.get("ProjectType") or "")}
     # The Origin Myth project is added via INSERT...SELECT (gated on the standalone
     # option / a non-nomadic game), so the VALUES-only parser never sees it. Add it
     # by hand from its known definition (Data/OriginMythProject.sql) so the
     # standalone "Weave the Origin Myth" project is documented here too.
-    if not any(p.get("ProjectType") == "PROJECT_PR_ORIGIN_MYTH" for p in projects):
-        projects.append({
-            "ProjectType": "PROJECT_PR_ORIGIN_MYTH",
-            "Name": "LOC_PROJECT_PR_ORIGIN_MYTH_NAME",
-            "Description": "LOC_PROJECT_PR_ORIGIN_MYTH_DESCRIPTION",
-            "Cost": 24,
-            "PrereqCivic": "CIVIC_PR_ORAL_TRADITION",
-        })
+    projects.setdefault("PROJECT_PR_ORIGIN_MYTH", {
+        "ProjectType": "PROJECT_PR_ORIGIN_MYTH",
+        "Name": "LOC_PROJECT_PR_ORIGIN_MYTH_NAME",
+        "Description": "LOC_PROJECT_PR_ORIGIN_MYTH_DESCRIPTION",
+        "Cost": 24,
+        "PrereqCivic": "CIVIC_PR_ORAL_TRADITION",
+    })
     PEDIA = {
         "PROJECT_PR_BIG_GAME_HUNT": ("PR_BIG_GAME", "PrehistoricBigGame"),
         "PROJECT_PR_STOCKPILE": ("PR_STOCKPILE", "PrehistoricStockpile"),
     }
-    # The Daylight/Firelight Circles ship in SurplusProjects.sql, which the mod only
-    # loads when the "Surplus Production Projects" game-setup option is on (modinfo
-    # criteria SurplusProjects_Active). The VALUES-based parser sees them regardless,
-    # so flag the opt-in gating that the raw rows don't convey.
-    OPT_IN_SURPLUS = 'Optional — enable &ldquo;Surplus Production Projects&rdquo; in game setup'
-    NOTE = {
-        "PROJECT_PR_ORIGIN_MYTH": 'Choose an <a href="origin-myths.html">Origin Myth</a> · once per player',
-        "PROJECT_PR_STAR_SEED": "Atomic era · requires the Fire &amp; Stone secret society (the Star-Forge title).",
-        "PROJECT_PR_DAYLIGHT_CIRCLE": OPT_IN_SURPLUS,
-        "PROJECT_PR_FIRELIGHT_CIRCLE": OPT_IN_SURPLUS,
-    }
-    order = {"PROJECT_PR_BIG_GAME_HUNT": 0, "PROJECT_PR_STOCKPILE": 1,
-             "PROJECT_PR_ORIGIN_MYTH": 2, "PROJECT_PR_STAR_SEED": 3,
-             "PROJECT_PR_DAYLIGHT_CIRCLE": 4, "PROJECT_PR_FIRELIGHT_CIRCLE": 5}
-    projects.sort(key=lambda p: order.get(p.get("ProjectType"), 9))
 
-    sections = []
-    for p in projects:
-        pt = p["ProjectType"]
+    def card(pt):
+        p = projects[pt]
         icon = m.icon_web(pt)
         img = f'<img class="ico" src="{icon}" alt="">' if icon else '<div class="ico ico-blank">⚒️</div>'
         meta = [cost_label(p)]
         pl = prereq_label(m, p)
         if pl != "—":
             meta.append(pl)
-        if pt in NOTE:
-            meta.append(NOTE[pt])
-        deep = pedia_chapters(m, "CONCEPTS", *PEDIA[pt], htag="h3") if pt in PEDIA else ""
-        sections.append(f"""<section class="proj">
+        # The in-game Civilopedia entries are long; keep them collapsed by default.
+        pedia = pedia_chapters(m, "CONCEPTS", *PEDIA[pt], htag="h3") if pt in PEDIA else ""
+        more = (f'<details class="pedia-more"><summary>In-game Civilopedia entry</summary>{pedia}</details>'
+                if pedia else "")
+        return f"""<section class="proj">
   <div class="card">
-    <div class="card-head">{img}<div><h2 style="border:0;margin:0">{name_of(p.get('Name'), m.loc)}</h2>
+    <div class="card-head">{img}<div><h3>{name_of(p.get('Name'), m.loc)}</h3>
     <div class="sub">{' · '.join(meta)}</div></div></div>
     <div class="desc">{render_text(p.get('Description'), m.loc)}</div>
   </div>
-  {deep}
-</section>""")
+  {more}
+</section>"""
+
+    # Grouped by how a game gets each project. The section notes carry the game-setup
+    # gating that the raw rows don't convey (the parser loads option-gated SQL — the
+    # Circles' SurplusProjects.sql, the Origin Myth — unconditionally).
+    GROUPS = [
+        ("Standard game",
+         "Available in every game — no setup option required.",
+         ["PROJECT_PR_BIG_GAME_HUNT", "PROJECT_PR_STOCKPILE"]),
+        ("Surplus Production Projects",
+         'Enabled by the <strong>Surplus Production Projects</strong> game-setup option '
+         '(off by default). Two repeatable projects, available in any city with a Hearth, '
+         'that convert part of the <span class="chip" title="Production">🔨</span> Production '
+         'put into them into science or culture — handy when research runs far behind '
+         'production. Both become unavailable once Bronze Working is researched.',
+         ["PROJECT_PR_DAYLIGHT_CIRCLE", "PROJECT_PR_FIRELIGHT_CIRCLE"]),
+        ("Origin Myth",
+         'Enabled by the <strong>Origin Myths</strong> game-setup option in a standard '
+         '(non–Wandering Start) game. Once you research Oral Tradition, a city can complete '
+         'this project to choose an <a href="origin-myths.html">Origin Myth</a> whose effect '
+         'lasts the rest of the game — once per player.',
+         ["PROJECT_PR_ORIGIN_MYTH"]),
+        ("Fire &amp; Stone",
+         'A late-game project unlocked through the <a href="society.html">Fire &amp; Stone</a> '
+         'secret society (the Star-Forge governor title).',
+         ["PROJECT_PR_STAR_SEED"]),
+    ]
+
+    used, blocks = set(), []
+    for title, note, pts in GROUPS:
+        present = [pt for pt in pts if pt in projects]
+        used.update(present)
+        if not present:
+            continue
+        note_html = f'<p class="proj-note">{note}</p>' if note else ""
+        blocks.append(f'<h2 class="proj-group">{title}</h2>{note_html}' + "".join(card(pt) for pt in present))
+
+    # Any _PR_ project we didn't place (e.g. a future addition) still gets shown.
+    leftover = [pt for pt in projects if pt not in used]
+    if leftover:
+        blocks.append('<h2 class="proj-group">Other</h2>' + "".join(card(pt) for pt in leftover))
 
     body = f"""<h1>Projects</h1>
-<p class="lead">City projects added by the mod. Two power the new <strong>Big Game Hunt</strong> and <strong>Stockpile</strong> systems; <strong>Weave the Origin Myth</strong> lets a standard game choose an <a href="origin-myths.html">Origin Myth</a>; <strong>Star-Quickening</strong> is a late-game <a href="society.html">Fire &amp; Stone</a> secret-society project; and the opt-in <strong>Daylight</strong> and <strong>Firelight Circles</strong> turn leftover early-era production into <span class="chip" title="Science">🧪</span> Science and <span class="chip" title="Culture">🎭</span> Culture. Each entry below includes the mod's in-game Civilopedia explanation where one exists.</p>
-{"".join(sections)}"""
+<p class="lead">The mod adds a number of new city projects.</p>
+{"".join(blocks)}"""
     return page("Projects", "projects.html", body)
 
 
@@ -1777,6 +1802,17 @@ a.ul-policy:hover,a.ul-government:hover{background:var(--panel);text-decoration:
 .journey{margin:.5em 0;font-size:.9rem;color:#ddd2bd}
 .journey .eff-head{color:var(--accent2)}
 .card.myth blockquote{margin-top:.7em}
+/* projects */
+.proj{margin-bottom:18px}
+.proj-group{margin-top:2em}
+.proj-note{max-width:74ch;color:var(--muted);font-size:.92rem;margin:.1em 0 1.1em}
+details.pedia-more{margin-top:4px}
+details.pedia-more > summary{cursor:pointer;color:var(--accent2);font-size:.85rem;
+  padding:5px 0;list-style:none;user-select:none}
+details.pedia-more > summary::-webkit-details-marker{display:none}
+details.pedia-more > summary::before{content:"\\25B8\\00a0"}
+details.pedia-more[open] > summary::before{content:"\\25BE\\00a0"}
+details.pedia-more[open] .pedia:first-of-type{margin-top:.4em}
 .note{max-width:74ch;background:var(--bg2);border-left:3px solid var(--accent2);
   border-radius:6px;padding:8px 14px;color:var(--muted);font-size:.9rem;margin:0 0 1.2em}
 .tbl-wrap{overflow-x:auto;margin-top:14px}
