@@ -226,6 +226,76 @@ def sql_icon_defs(data_dir: str) -> list[tuple]:
     return out
 
 
+# Setup-screen (FrontEnd config) text lives in Config/ConfigText.sql as
+# `INSERT OR REPLACE INTO LocalizedText (Tag, Language, Text) VALUES (...)` — a
+# different shape from Text/*.xml, and OR REPLACE so the plain-INSERT row parser
+# skips it (same reason as sql_icon_defs). Read the en_US rows for the game-option
+# names/descriptions, which are NOT in Text/*.xml.
+def _split_statements(sql: str) -> list[str]:
+    """Split SQL on `;` at the top level, ignoring semicolons inside string
+    literals. The plain `(.*?);` regex used elsewhere is fine for data rows (whose
+    values are identifiers/numbers), but ConfigText.sql stores English prose in
+    LocalizedText values — and that prose contains semicolons, which would
+    truncate a naive match mid-statement and silently drop every row after it."""
+    stmts, buf = [], []
+    in_str = False
+    i, n = 0, len(sql)
+    while i < n:
+        c = sql[i]
+        if in_str:
+            buf.append(c)
+            if c == "'":
+                if i + 1 < n and sql[i + 1] == "'":
+                    buf.append("'")
+                    i += 2
+                    continue
+                in_str = False
+            i += 1
+            continue
+        if c == "'":
+            in_str = True
+            buf.append(c)
+        elif c == ";":
+            stmts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(c)
+        i += 1
+    if "".join(buf).strip():
+        stmts.append("".join(buf))
+    return stmts
+
+
+# Header only (no trailing `;`); tuples are read separately with the string-aware
+# _split_tuples so prose containing `;` or `,` does not break parsing.
+_LOCTEXT_HEAD_RE = re.compile(
+    r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+LocalizedText\s*\(([^)]*?)\)\s*VALUES\s*(.*)",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def load_config_text(config_dir: str, language: str = "en_US") -> dict[str, str]:
+    loc: dict[str, str] = {}
+    for path in sorted(glob.glob(os.path.join(config_dir, "*.sql"))):
+        try:
+            clean = strip_sql_comments(open(path, encoding="utf-8-sig").read())
+        except OSError:
+            continue
+        for stmt in _split_statements(clean):
+            m = _LOCTEXT_HEAD_RE.match(stmt.strip())
+            if not m:
+                continue
+            cols = [_clean_col(c) for c in _split_top_level(m.group(1))]
+            for tup in _split_tuples(m.group(2)):
+                vals = [_parse_value(v) for v in _split_top_level(tup)]
+                if len(vals) != len(cols):
+                    continue
+                row = dict(zip(cols, vals))
+                if row.get("Language") == language and row.get("Tag"):
+                    loc[row["Tag"]] = row.get("Text") or ""
+    return loc
+
+
 _UPDATE_RE = re.compile(
     r"UPDATE\s+([A-Za-z_][A-Za-z0-9_]*)\s+SET\s+(.*?)\s+WHERE\s+(.*?);",
     re.IGNORECASE | re.DOTALL,

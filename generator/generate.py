@@ -240,6 +240,12 @@ class Model:
     def __init__(self):
         self.tables = parse.load_sql(os.path.join(ROOT, "Data"))
         self.loc = parse.load_text(os.path.join(ROOT, "Text"))
+        # FrontEnd setup-screen database (Config/*.sql) — the game-setup options the
+        # mod adds. Kept apart from self.tables (gameplay data); its LocalizedText
+        # strings are folded into self.loc so option names/descriptions resolve.
+        self.config = parse.load_sql(os.path.join(ROOT, "Config"))
+        for k, v in parse.load_config_text(os.path.join(ROOT, "Config")).items():
+            self.loc.setdefault(k, v)
         # Icon jobs describe how to produce each PNG (atlas cell or loose file);
         # the actual PNGs are written by copy_icons(). self.icons maps the lookup
         # key to the emitted filename so icon_web() resolves before the write.
@@ -309,6 +315,9 @@ class Model:
 
     def rows(self, table):
         return self.tables.get(table, [])
+
+    def config_rows(self, table):
+        return self.config.get(table, [])
 
     def canon_rows(self, table):
         return self.canon.get(table, [])
@@ -491,13 +500,14 @@ NAV = [
     ("governor.html", "Governor"),
     ("society.html", "Society"),
     ("civleaders.html", "Civs & Leaders"),
+    ("gameoptions.html", "Game Options"),
 ]
 
-# Grouped view of NAV for the header (collapsible dropdowns keep 15 pages tidy).
+# Grouped view of NAV for the header (collapsible dropdowns keep the pages tidy).
 NAV_GROUPS = [
     ("Trees", ["tech-tree.html", "civics.html"]),
     ("Content", ["units.html", "buildings.html", "wonders.html", "improvements.html", "projects.html"]),
-    ("Systems", ["policies.html", "pantheons.html", "dedications.html", "origin-myths.html", "governments.html", "governor.html", "society.html", "civleaders.html"]),
+    ("Systems", ["policies.html", "pantheons.html", "dedications.html", "origin-myths.html", "governments.html", "governor.html", "society.html", "civleaders.html", "gameoptions.html"]),
 ]
 NAV_STANDALONE = ["myths.html"]  # Wandering Start — a top-level link
 
@@ -1602,6 +1612,188 @@ def build_projects_page(m):
     return page("Projects", "projects.html", body)
 
 
+# Setup screens the mod adds options to. Game/GameModes = the Game Modes tab;
+# Game/GameOptions = advanced Game options; Map/AdvancedOptions = the Map tab (HSD
+# timeline lives there). Parameters outside these are internal plumbing.
+_OPTION_SCREENS = {
+    ("Game", "GameOptions"), ("Game", "GameModes"), ("Map", "AdvancedOptions"),
+}
+# Read-only setup notices dressed as bool params — informational, not selectable.
+_OPTION_EXCLUDE = {"PR_HSD_NomadicNotice"}
+
+
+def _game_options(m):
+    """The mod's selectable setup Parameters, deduped by ParameterId (Wandering
+    Start is declared once per ruleset). Shared by the page and the dashboard count."""
+    seen, opts = set(), []
+    for p in m.config_rows("Parameters"):
+        pid = p.get("ParameterId")
+        if not pid or pid in seen or pid in _OPTION_EXCLUDE:
+            continue
+        if (p.get("ConfigurationGroup"), p.get("GroupId")) not in _OPTION_SCREENS:
+            continue
+        seen.add(pid)
+        opts.append(p)
+    return opts
+
+
+def _has_start_era_option(m):
+    # Start Era isn't a Parameter of its own; the mod registers ERA_PREHISTORIC in
+    # the base "Start Era" dropdown (Config/Config.sql). Count it as one option.
+    return any(e.get("EraType") == "ERA_PREHISTORIC" for e in m.config_rows("Eras"))
+
+
+def game_option_count(m):
+    return len(_game_options(m)) + (1 if _has_start_era_option(m) else 0)
+
+
+def build_gameoptions_page(m):
+    """The game-setup options the mod adds, read from Config/*.sql (Parameters +
+    DomainValues + ParameterDependencies) with names/descriptions from ConfigText.
+
+    Grouped by how they show up in the setup screen: options in a standard game,
+    sub-options that only appear once Wandering Start is on, and compatibility
+    options that only appear when a companion Workshop mod is installed."""
+    domain_values = m.config_rows("DomainValues")
+    deps = m.config_rows("ParameterDependencies")
+
+    # ParameterId -> [(ConfigurationId, Operator, ConfigurationValue)]
+    dep_map = {}
+    for d in deps:
+        dep_map.setdefault(d.get("ParameterId"), []).append(
+            (d.get("ConfigurationId"), d.get("Operator"), str(d.get("ConfigurationValue"))))
+
+    # Domain -> [rows], sorted by SortIndex (dropdown choices).
+    dom_map = {}
+    for v in domain_values:
+        dom_map.setdefault(v.get("Domain"), []).append(v)
+    for vs in dom_map.values():
+        vs.sort(key=lambda v: int(v.get("SortIndex") or 0))
+
+    # Compat options only surface when their companion mod is active. That fact
+    # lives in the modinfo ModInUse criteria, not in the Config SQL, so name it
+    # here (same hand-annotation pattern as the Origin Myth project / base_policies).
+    COMPAT = {
+        "PrehistoricAllWildlife": "the <strong>Prehistoric Wildlife</strong> mod",
+        "PR_HSD_Timeline": "the <strong>Historical Spawn Dates</strong> mod",
+    }
+
+    opts = _game_options(m)
+
+    def bool_default(v):
+        return "On" if str(v) == "1" else "Off"
+
+    def option_card(p):
+        pid = p["ParameterId"]
+        name = name_of(p.get("Name"), m.loc)
+        domain = p.get("Domain")
+        is_bool = domain == "bool"
+        # meta line: kind · default · visibility
+        meta = []
+        if is_bool:
+            meta.append("Toggle")
+            meta.append(f"Default: {bool_default(p.get('DefaultValue'))}")
+        else:
+            meta.append("Dropdown")
+            # Show the default only when its label is one this mod owns. A compat
+            # dropdown (HSD) defaults to the other mod's value, whose name we can't
+            # resolve — printing the raw LOC key there would look broken.
+            dv = p.get("DefaultValue")
+            dv_name = next((name_of(x.get("Name"), m.loc) for x in dom_map.get(domain, [])
+                            if x.get("Value") == dv and x.get("Name") in m.loc), None)
+            if dv_name:
+                meta.append(f"Default: {dv_name}")
+        # visibility from dependencies
+        for cid, op, val in dep_map.get(pid, []):
+            if cid == "GAMEMODE_NOMADIC" and op == "Equals" and val == "1":
+                meta.append("Shown only with Wandering Start")
+            elif cid == "GAMEMODE_NOMADIC" and op == "NotEquals" and val == "1":
+                meta.append("Hidden with Wandering Start")
+        desc = render_text(p.get("Description"), m.loc)
+        # dropdown choices — show only values whose name resolves in our text (so
+        # the HSD dropdown lists just the mod's own "Prehistoric", not the four
+        # base HSD values it re-declares but whose names that mod owns).
+        values = ""
+        if not is_bool:
+            items = []
+            for x in dom_map.get(domain, []):
+                nk = x.get("Name")
+                if not nk or nk not in m.loc:
+                    continue
+                cls = ' class="is-default"' if x.get("Value") == p.get("DefaultValue") else ""
+                vdesc = render_inline(x.get("Description"), m.loc)
+                dv_label = name_of(nk, m.loc)
+                items.append(f'<li{cls}><strong>{dv_label}</strong>{" — " + vdesc if vdesc else ""}</li>')
+            if items:
+                values = f'<div class="opt-values"><span class="eff-head">Choices</span><ul>{"".join(items)}</ul></div>'
+        compat = ""
+        if pid in COMPAT:
+            compat = (f'<p class="opt-compat">Only appears when {COMPAT[pid]} is also '
+                      f'enabled.</p>')
+        return f"""<section class="proj">
+  <div class="card">
+    <div class="card-head"><div><h3>{name}</h3><div class="sub">{' · '.join(meta)}</div></div></div>
+    <div class="desc">{desc}</div>
+    {compat}{values}
+  </div>
+</section>"""
+
+    # Classify each option into a group.
+    def group_of(p):
+        pid = p["ParameterId"]
+        if pid in COMPAT:
+            return "compat"
+        if any(cid == "GAMEMODE_NOMADIC" and op == "Equals" and val == "1"
+               for cid, op, val in dep_map.get(pid, [])):
+            return "wander"
+        return "standard"
+
+    buckets = {"standard": [], "wander": [], "compat": []}
+    for p in opts:
+        buckets[group_of(p)].append(p)
+    for b in buckets.values():
+        b.sort(key=lambda p: int(p.get("SortIndex") or 0))
+
+    # Start Era isn't a Parameter of its own — the mod registers ERA_PREHISTORIC in
+    # the existing "Start Era" dropdown and makes it the default (Config/Config.sql:
+    # INSERT INTO Eras + UPDATE Parameters ... DefaultValue). Hand-add it so the
+    # most important setup choice is documented, keyed off the era actually being
+    # registered in the config so it self-heals if that ever changes.
+    start_era_card = ""
+    if _has_start_era_option(m):
+        era_name = name_of("LOC_ERA_PREHISTORIC_NAME", m.loc) or "Prehistoric Era"
+        start_era_card = f"""<section class="proj">
+  <div class="card">
+    <div class="card-head"><div><h3>Starting Era &rarr; {era_name}</h3><div class="sub">Dropdown &middot; Default: {era_name}</div></div></div>
+    <div class="desc"><p>The mod adds the {era_name} to the base game's <strong>Start Era</strong> dropdown and makes it the new default, so a game begins in the Stone Age. Pick a later era to &ldquo;skip prehistory&rdquo;: its prehistoric technologies and civics are auto-granted as an earlier era. Turning on Wandering Start forces the start era to {era_name} (the dropdown is locked).</p></div>
+  </div>
+</section>"""
+
+    GROUPS = [
+        ("standard", "Standard game",
+         "Options available when setting up any game — no companion mod needed."),
+        ("wander", "Wandering Start sub-options",
+         'These appear only when the <strong>Wandering Start Mode</strong> game mode '
+         'is enabled, fine-tuning how the roaming start plays out.'),
+        ("compat", "Compatibility options",
+         "These appear only when the matching companion Workshop mod is also enabled."),
+    ]
+    blocks = []
+    for key, title, note in GROUPS:
+        cards = ""
+        if key == "standard":
+            cards += start_era_card
+        cards += "".join(option_card(p) for p in buckets[key])
+        if not cards:
+            continue
+        blocks.append(f'<h2 class="proj-group">{title}</h2><p class="proj-note">{note}</p>{cards}')
+
+    body = f"""<h1>Game options</h1>
+<p class="lead">Setup choices the mod adds to the game-creation screen.</p>
+{"".join(blocks)}"""
+    return page("Game options", "gameoptions.html", body)
+
+
 def build_index(m):
     counts = {
         "Technologies": len(m.rows("Technologies")),
@@ -1623,6 +1815,7 @@ def build_index(m):
         "Governor": len([g for g in m.rows("Governors") if g.get("GovernorType") == "GOVERNOR_PR_SHAMAN"]),
         "Society": len([x for x in m.rows("SecretSocieties") if "_PR_" in (x.get("SecretSocietyType") or "")]),
         "Civs & Leaders": sum(len(v) for v in civ_regates(m).values()) + len(LEADER_GATES),
+        "Game Options": game_option_count(m),
     }
     era_desc = render_text("LOC_ERA_PREHISTORIC_DESCRIPTION", m.loc)
     # Wandering Start stays a nav link but is a narrative mode overview, not a
@@ -1654,7 +1847,7 @@ def build_index(m):
 <section class="nav-cards">{"".join(cards)}</section>
 <section class="about">
   <h2>About this reference</h2>
-  <p>This site is generated directly from the mod's own data files (<code>Data/*.sql</code>, <code>Text/*.xml</code>, <code>Icons/</code>), so it always matches the installed mod version shown in the header. To refresh it after a mod update, re-run the generator: <code>python generator/generate.py</code>. See the project <code>README.md</code> for details.</p>
+  <p>This site is generated directly from the mod's own data files (<code>Data/*.sql</code>, <code>Config/*.sql</code>, <code>Text/*.xml</code>, <code>Icons/</code>), so it always matches the installed mod version shown in the header. To refresh it after a mod update, re-run the generator: <code>python generator/generate.py</code>. See the project <code>README.md</code> for details.</p>
 </section>"""
     return page("Overview", "index.html", body)
 
@@ -1813,6 +2006,14 @@ details.pedia-more > summary::-webkit-details-marker{display:none}
 details.pedia-more > summary::before{content:"\\25B8\\00a0"}
 details.pedia-more[open] > summary::before{content:"\\25BE\\00a0"}
 details.pedia-more[open] .pedia:first-of-type{margin-top:.4em}
+.opt-values{margin-top:.7em}
+.opt-values ul{margin:.25em 0 0;padding-left:1.15em}
+.opt-values li{margin:.3em 0;color:var(--muted);font-size:.9rem}
+.opt-values li.is-default{color:#ddd2bd}
+.opt-values li.is-default strong::after{content:" (default)";color:var(--accent2);font-weight:400;font-size:.85em}
+.opt-values li strong{color:var(--ink);font-weight:600}
+.opt-compat{margin:.6em 0 0;font-size:.88rem;color:var(--accent2);
+  background:var(--bg2);border-left:3px solid var(--accent2);border-radius:6px;padding:6px 10px}
 .note{max-width:74ch;background:var(--bg2);border-left:3px solid var(--accent2);
   border-radius:6px;padding:8px 14px;color:var(--muted);font-size:.9rem;margin:0 0 1.2em}
 .tbl-wrap{overflow-x:auto;margin-top:14px}
@@ -1912,6 +2113,7 @@ def main():
         "governor.html": build_governor_page(m),
         "society.html": build_society_page(m),
         "civleaders.html": build_civleaders_page(m),
+        "gameoptions.html": build_gameoptions_page(m),
     }
     n_icons = copy_icons(m)
     for name, content in pages.items():
