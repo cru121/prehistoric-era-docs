@@ -1566,6 +1566,24 @@ def build_projects_page(m):
   {more}
 </section>"""
 
+    # Conversion rate for the Surplus Circles, read from the mod (Project_YieldConversions:
+    # PercentOfProductionRate = % of the Production put in that is also earned as the yield
+    # each turn — the Production itself still accumulates toward completion). Data-driven so
+    # the intro self-updates if the author retunes it; only shown when both circles share a
+    # single rate (they do: 10% → 10 🔨 per 1 yield).
+    _sp = {r.get("YieldType"): r.get("PercentOfProductionRate")
+           for r in m.rows("Project_YieldConversions")
+           if r.get("ProjectType") in ("PROJECT_PR_DAYLIGHT_CIRCLE", "PROJECT_PR_FIRELIGHT_CIRCLE")}
+    surplus_rate = ""
+    _sci, _cul = _sp.get("YIELD_SCIENCE"), _sp.get("YIELD_CULTURE")
+    if _sci and _cul and str(_sci) == str(_cul) and str(_sci).isdigit() and int(_sci) > 0:
+        _pct = int(_sci)
+        _ratio = round(100 / _pct)
+        surplus_rate = (f' Conversion rate: {_pct}% — every {_ratio} '
+                        '<span class="chip" title="Production">🔨</span> Production invested yields 1 '
+                        '<span class="chip" title="Science">🧪</span> Science or '
+                        '<span class="chip" title="Culture">🎭</span> Culture per turn.')
+
     # Grouped by how a game gets each project. The section notes carry the game-setup
     # gating that the raw rows don't convey (the parser loads option-gated SQL — the
     # Circles' SurplusProjects.sql, the Origin Myth — unconditionally).
@@ -1578,7 +1596,7 @@ def build_projects_page(m):
          '(off by default). Two repeatable projects, available in any city with a Hearth, '
          'that convert part of the <span class="chip" title="Production">🔨</span> Production '
          'put into them into science or culture — handy when research runs far behind '
-         'production. Both become unavailable once Bronze Working is researched.',
+         f'production.{surplus_rate} Both become unavailable once Bronze Working is researched.',
          ["PROJECT_PR_DAYLIGHT_CIRCLE", "PROJECT_PR_FIRELIGHT_CIRCLE"]),
         ("Origin Myth",
          'Enabled by the <strong>Origin Myths</strong> game-setup option in a standard '
