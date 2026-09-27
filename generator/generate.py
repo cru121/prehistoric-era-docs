@@ -929,11 +929,25 @@ def _buildable_cost(r):
         return False
 
 
+def _is_internal_building(r):
+    """The mod marks engine-only helper buildings (the invisible 'Processing the
+    Great Hunt' reward tokens, the GATE_* markers) with InternalOnly=1 to hide them
+    from the purchase/production lists. That flag is the author's own convention and
+    is more robust than the cost sentinel, which the reward tokens dropped to Cost 1
+    in v43. Column values arrive as strings, so compare numerically."""
+    try:
+        return int(r.get("InternalOnly") or 0) == 1
+    except (TypeError, ValueError):
+        return False
+
+
 def build_buildings_page(m):
-    # Cost > 0 filters out internal reward-token buildings (Cost = -1), e.g. the
-    # invisible "Processing the Great Hunt" buildings that grant scaled yields.
+    # Drop internal reward-token buildings (the invisible "Processing the Great Hunt"
+    # buildings that grant scaled yields, GATE_* markers, etc.): they carry
+    # InternalOnly=1, with the cost check as a backstop.
     blds = [r for r in m.rows("Buildings")
-            if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _buildable_cost(r)]
+            if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder")
+            and not _is_internal_building(r) and _buildable_cost(r)]
 
     def card(r):
         bt = r["BuildingType"]
@@ -1821,7 +1835,7 @@ def build_index(m):
         "Pantheons": len([b for b in m.rows("Beliefs") if b.get("BeliefClassType") == "BELIEF_CLASS_PANTHEON" and "_PR_" in (b.get("BeliefType") or "")]),
         "Dedications": len(m.rows("CommemorationTypes")),   # the mod's new Prehistoric Dedications (Monumentality is base, brought forward)
         "Units": len([r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]),
-        "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and _buildable_cost(r)]),
+        "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and not _is_internal_building(r) and _buildable_cost(r)]),
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
         "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "") and "BAETYL" not in r["ImprovementType"]]),
         # +1 for the Origin Myth project, which build_projects_page adds by hand
