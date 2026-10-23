@@ -257,6 +257,13 @@ class Model:
         )
         self.icons = {k: k + ".png" for k in self._icon_jobs}
         self._used_icons: set = set()   # keys actually referenced by the pages
+        # Entries the mod drops from the in-game Civilopedia (CivilopediaPageExcludes):
+        # content left in the data for compatibility but no longer shown to players —
+        # e.g. the Palisade improvement once the BUILDING_PR_PALISADE city building
+        # replaced it (v50). Honoring the same list keeps the docs in step with the
+        # game's own Civilopedia. Keyed by PageId, which is the entry's Type.
+        self.excluded = {r.get("PageId") for r in self.rows("CivilopediaPageExcludes")
+                         if r.get("PageId")}
         # Canonical (standard-game) tree edges — NOT the nomadic/compat re-wiring.
         self.canon = parse.load_sql_files([
             os.path.join(ROOT, "Data", "Technologies.sql"),
@@ -589,13 +596,13 @@ def unlocks_for(m, prereq_col, prereq_key):
     ]:
         for r in m.rows(tbl):
             t = r.get(tcol) or ""
-            if r.get(prereq_col) == prereq_key and "_PR_" in t:
+            if r.get(prereq_col) == prereq_key and "_PR_" in t and t not in m.excluded:
                 out.append((kind, t, r.get(ncol), False))
     # Civics also unlock policy cards (Policies.PrereqCivic).
     if prereq_col == "PrereqCivic":
         for r in m.rows("Policies"):
             t = r.get("PolicyType") or ""
-            if r.get("PrereqCivic") == prereq_key and "_PR_" in t:
+            if r.get("PrereqCivic") == prereq_key and "_PR_" in t and t not in m.excluded:
                 out.append(("policy", t, r.get("Name"), False))
     for kind, type_key in m.regated.get((prereq_col, prereq_key), []):
         out.append((kind, type_key, None, True))
@@ -1006,7 +1013,13 @@ def build_improvements_page(m):
                 if "_PR_" in (r.get("ImprovementType") or "") or "_NS_" in (r.get("ImprovementType") or "")]
     baetyl = [r for r in all_imps if "BAETYL" in r["ImprovementType"]]
     nomadic = [r for r in all_imps if "_NS_" in r["ImprovementType"]]
-    standard = [r for r in all_imps if r not in baetyl and r not in nomadic]
+    # Honor CivilopediaPageExcludes only for the normal buildable grid — it drops the
+    # Palisade (replaced by BUILDING_PR_PALISADE in v50) and the engine-internal tile
+    # markers (foraged-ground and Great-Hunt-target states). The Wandering Start
+    # actions below are deliberately kept: the mod also hides them from the in-game
+    # Civilopedia, but this page documents them in their own clearly-labelled section.
+    standard = [r for r in all_imps if r not in baetyl and r not in nomadic
+                and r.get("ImprovementType") not in m.excluded]
 
     def card(r):
         it = r["ImprovementType"]
@@ -1837,7 +1850,7 @@ def build_index(m):
         "Units": len([r for r in m.rows("Units") if "_PR_" in (r.get("UnitType") or "") and not r["UnitType"].endswith("_CS")]),
         "Buildings": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and not r.get("IsWonder") and not _is_internal_building(r) and _buildable_cost(r)]),
         "Wonders": len([r for r in m.rows("Buildings") if "_PR_" in (r.get("BuildingType") or "") and r.get("IsWonder")]),
-        "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "") and "BAETYL" not in r["ImprovementType"]]),
+        "Improvements": len([r for r in m.rows("Improvements") if "_PR_" in (r.get("ImprovementType") or "") and "BAETYL" not in r["ImprovementType"] and r.get("ImprovementType") not in m.excluded]),
         # +1 for the Origin Myth project, which build_projects_page adds by hand
         # (INSERT...SELECT, so not in the parsed rows). See that function.
         "Projects": len([p for p in m.rows("Projects") if "_PR_" in (p.get("ProjectType") or "")])

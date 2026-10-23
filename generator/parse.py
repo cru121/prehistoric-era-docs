@@ -189,6 +189,17 @@ def parse_sql_file(path: str, tables: dict[str, list[dict]]):
 def load_sql(data_dir: str) -> dict[str, list[dict]]:
     tables: dict[str, list[dict]] = defaultdict(list)
     for path in sorted(glob.glob(os.path.join(data_dir, "*.sql"))):
+        if os.path.basename(path).lower().startswith("compat_"):
+            # Cross-mod compatibility files (Compat_*.sql) only take effect in-game
+            # when the OTHER mod is also active, so their rows are not core
+            # Prehistoric Era content and must not be documented. Skipping them keeps
+            # conditional variants out of the model — e.g. v50's JNR Statecraft files
+            # re-INSERT policies like POLICY_JNR_GPP_09_DARK_0_PR_CAPTIVE_LABOR that
+            # reuse a base policy's name and would otherwise render as duplicate cards
+            # (and leak into civic "Unlocks" lists). The one compat file the docs do
+            # draw on — Compat_Civs.sql, for re-gated base-game uniques — is read by
+            # explicit path via load_updates (see generate.py), not through this scan.
+            continue
         try:
             parse_sql_file(path, tables)
         except Exception as exc:  # noqa: BLE001 - keep going, report at end
