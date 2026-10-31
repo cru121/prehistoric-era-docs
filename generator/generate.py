@@ -915,11 +915,31 @@ def build_units_page(m):
 <p class="lead">Units from the <a href="society.html">Fire &amp; Stone</a> secret society (requires the Secret Societies game mode).</p>
 {card_grid([card(r) for r in society])}"""
 
+    # The Forged earns experience on its own promotion tree (added v51).
+    forged_section = ""
+    fp = [r for r in m.rows("UnitPromotions")
+          if r.get("PromotionClass") == "PROMOTION_CLASS_PR_FORGED"]
+    if fp:
+        fp.sort(key=lambda r: (int(r.get("Level") or 0), int(r.get("Column") or 0)))
+        pn = {r["UnitPromotionType"]: m.loc.get(r.get("Name"), r.get("Name")) for r in fp}
+        prereq = {}
+        for r in m.rows("UnitPromotionPrereqs"):
+            if r.get("UnitPromotion") in pn:
+                prereq.setdefault(r["UnitPromotion"], []).append(pn.get(r.get("PrereqUnitPromotion"), ""))
+        trows = [[f"Tier {r['Level']}",
+                  f"<strong>{html.escape(pn[r['UnitPromotionType']])}</strong>",
+                  render_inline(r.get("Description"), m.loc),
+                  html.escape(" or ".join(prereq.get(r["UnitPromotionType"], [])) or "—")] for r in fp]
+        forged_section = f"""<h2>The Forged — promotions</h2>
+<p class="lead">Unlike other units, The Forged earns experience and advances along its own <strong>{html.escape(m.loc.get('LOC_PROMOTION_CLASS_PR_FORGED_NAME', 'Path of the Forged'))}</strong> tree: two choices at each of the first tiers, one capstone at the top.</p>
+{html_table(["Tier", "Promotion", "Effect", "Requires"], trows)}"""
+
     body = f"""<h1>Units</h1>
 <p class="lead">{len(players)} player units for the stone age, plus {len(society)} secret-society units and {len(barbs)} barbarian &amp; naval units.</p>
 <h2>Player units</h2>
 {card_grid([card(r) for r in players])}
 {society_section}
+{forged_section}
 <h2>Barbarian &amp; naval units</h2>
 {card_grid([card(r) for r in barbs])}
 {mod_section}"""
